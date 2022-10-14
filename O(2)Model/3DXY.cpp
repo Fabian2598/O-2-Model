@@ -10,7 +10,17 @@
 
 double pi = 3.14159265359;
 double E = 0, En = 0, En2 = 0, chi = 0, Cv = 0;
-double dchi = 0, dCv = 0, dE = 0, dE2 = 0;
+double dchi, dCv, dE, dE2;
+double R; //Acceptance ratio
+
+int L = 4;
+std::vector<int> Ira{ rand() % L, rand() % L , rand() % L};
+std::vector<int> Masha = {Ira[0], Ira[1], Ira[2]};
+
+std::vector<std::vector<std::vector<int>>> FluxX(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+std::vector<std::vector<std::vector<int>>> FluxY(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+std::vector<std::vector<std::vector<int>>> FluxZ(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+
 
 double mean(std::vector<double> x) {
     double prom = 0;
@@ -71,21 +81,6 @@ double Jackknife(std::vector<double> dat, std::vector<int> bins) {
     return error;
 }
 //-------------End of Jackknife--------------//
-
-//Generates a random numbre between x_min and x_max
-double x_rand(double x_min, double x_max) {
-    double x;
-    double cociente;
-    int i = 0;
-    while (i != 1) {
-        cociente = (((double)rand()) / (double)rand());
-        if (cociente <= 1) {
-            x = (x_max - x_min) * cociente + x_min;
-            return x;
-        }
-    }
-    return 0;
-}
 
 //---------------Linspace (similar to python)----------------------//
 std::vector<double> linspace(double min, double max, int n) {
@@ -211,8 +206,8 @@ BESSEL BesselTableCaller(double beta, int Jij, std::vector<double> Inu, std::vec
 
 //-----Computes the energy-----//
 
-void EnergyWA(int L, double beta, std::vector<std::vector<std::vector<int>>> FluxX, std::vector<std::vector<std::vector<int>>> FluxY, std::vector<std::vector<std::vector<int>>> FluxZ, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
-    BESSEL Tab;
+inline void EnergyWA(double beta, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
+    struct BESSEL Tab;
     double Iv, Iv1, Iv2;
     for(int i = 0; i < L; i++){
         for(int j = 0; j < L; j++){
@@ -233,12 +228,12 @@ void EnergyWA(int L, double beta, std::vector<std::vector<std::vector<int>>> Flu
 }
 
 //Acceptance Ratio//
-double AccRatio(int mu, double beta, int L, std::vector<int> Masha , std::vector<std::vector<std::vector<int>>> FluxX, std::vector<std::vector<std::vector<int>>> FluxY, std::vector<std::vector<std::vector<int>>> FluxZ, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
+inline void AccRatio(int mu, double beta, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
     //This function computes the acceptance ratio based on the flux between
     //two neighbouring sites.
-    
-    BESSEL Tab;
-    double IvFin, IvIni, R;
+
+    struct BESSEL Tab;
+    double IvFin, IvIni;
     int FluxIni, FluxFin;
     if (mu == 0){FluxIni = FluxX[Masha[0]][Masha[1]][Masha[2]];}
     else if (mu == 1){FluxIni = -FluxX[Masha[0]][modulo(Masha[1]-1,L)][Masha[2]];}
@@ -251,23 +246,16 @@ double AccRatio(int mu, double beta, int L, std::vector<int> Masha , std::vector
     IvIni = Tab.Inu;
     Tab = BesselTableCaller(beta, FluxFin, Inu, Inu1, Inu2);
     IvFin = Tab.Inu;
-    return IvFin/IvIni;
+    R = IvFin/IvIni;
 }
-//-----------------------------------------//
-struct SWEEP {
-    std::vector<int> Masha;
-    std::vector<std::vector<std::vector<int>>> FluxX;
-    std::vector<std::vector<std::vector<int>>> FluxY;
-    std::vector<std::vector<std::vector<int>>> FluxZ;
-};
 
-SWEEP WA_Sweep(int L, double beta, std::vector<std::vector<std::vector<int>>> FluxX, std::vector<std::vector<std::vector<int>>> FluxY, std::vector<std::vector<std::vector<int>>> FluxZ, std::vector<int> Masha, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
+inline void WA_Sweep(double beta, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
 // mu = 0 --> x direction, mu = 1 --> -x direction //
 // mu = 2 --> y direction, mu = 3 --> -y direction // 
 // mu = 4 --> z direction, mu = 5 --> -z direction //
-    SWEEP sweep;
     int mu = (rand() % 6);  
-    double r = x_rand(0, 1), R = AccRatio(mu, beta, L, Masha , FluxX, FluxY, FluxZ, Inu, Inu1, Inu2);
+    double r = ((double) rand() / (RAND_MAX));
+    AccRatio(mu, beta, Inu, Inu1, Inu2); //Computes R
     if (r < R){
         if (mu == 0){
             FluxX[Masha[0]][Masha[1]][Masha[2]] += 1;
@@ -294,22 +282,13 @@ SWEEP WA_Sweep(int L, double beta, std::vector<std::vector<std::vector<int>>> Fl
             Masha[2] = modulo(Masha[2]+1,L);
         }
     }
-    sweep.Masha = Masha; sweep.FluxX = FluxX; sweep.FluxY = FluxY; sweep.FluxZ = FluxZ;
-    return sweep;
 }
 
-void WA_XY3d(double beta, int L, int Ntherm, int Nmeas, int Nsteps){
+void WA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
     //Worm algorithm for one value of beta//
-    BESSELTAB Table = BesselITable(beta,5); //This computes the modified Bessel functions and its derivatives up to nu = 5.
+    struct BESSELTAB Table = BesselITable(beta,10); //This computes the modified Bessel functions and its derivatives up to nu = 5.
     std::vector<double> Inu = Table.Inu, Inu1 = Table.Inu1, Inu2 = Table.Inu2;
 
-    std::vector<int> Ira{ rand() % L, rand() % L , rand() % L};
-    std::vector<int> Masha = {Ira[0], Ira[1], Ira[2]};
-
-    std::vector<std::vector<std::vector<int>>> FluxX(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-    std::vector<std::vector<std::vector<int>>> FluxY(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-    std::vector<std::vector<std::vector<int>>> FluxZ(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-    SWEEP sweep;
     std::vector<double> Energy(Nmeas), Energy2(Nmeas), Chi(Nmeas);
     double tau = 0;
     //-----Thermalization------//
@@ -322,14 +301,13 @@ void WA_XY3d(double beta, int L, int Ntherm, int Nmeas, int Nsteps){
         else{
             tau += 1;
         }
-        sweep = WA_Sweep(L, beta, FluxX, FluxY, FluxZ, Masha, Inu, Inu1, Inu2);
-        Masha = sweep.Masha; FluxX = sweep.FluxX; FluxY = sweep.FluxY; FluxZ = sweep.FluxZ;
+        WA_Sweep(beta, Inu, Inu1, Inu2); 
     }
     //------Measurements------//
     int count = 0;
     while (count < Nmeas){
         if (Masha == Ira){
-            EnergyWA(L, beta, FluxX, FluxY, FluxZ, Inu, Inu1, Inu2);
+            EnergyWA(beta, Inu, Inu1, Inu2);
             Energy[count] = En; Energy2[count] = En2;
             En = 0, En2 = 0;
             Chi[count] = tau;       
@@ -341,41 +319,36 @@ void WA_XY3d(double beta, int L, int Ntherm, int Nmeas, int Nsteps){
         else{
             tau += 1;
         }     
-        sweep = WA_Sweep(L, beta, FluxX, FluxY, FluxZ, Masha, Inu, Inu1, Inu2);
-        Masha = sweep.Masha; FluxX = sweep.FluxX; FluxY = sweep.FluxY; FluxZ = sweep.FluxZ;
-//------Decorrelation steps------//
+        WA_Sweep(beta, Inu, Inu1, Inu2);
+    //------Decorrelation steps------//
         for (int j = 0; j<Nsteps; j++){
             if (Masha == Ira){
                 Ira = { rand() % L, rand() % L , rand() % L};
                 Masha = {Ira[0],Ira[1],Ira[2]};
             }
-        sweep = WA_Sweep(L, beta, FluxX, FluxY, FluxZ, Masha, Inu, Inu1, Inu2);
-        Masha = sweep.Masha; FluxX = sweep.FluxX; FluxY = sweep.FluxY; FluxZ = sweep.FluxZ;
+        WA_Sweep(beta, Inu, Inu1, Inu2);
         }
-
     }
         E = mean(Energy);
-        dE = Jackknife(Energy, {20,50,10});
+        dE = Jackknife_error(Energy, 20);
 
         En2 = mean(Energy2);
-        dE2 = Jackknife(Energy2, {20,50,10});
+        dE2 = Jackknife_error(Energy2, 20);
 
         Cv = beta * beta * (En2-E*E) /(L*L*L);
         dCv = absVal(beta * beta * (dE2 + 2*E*dE)/(L*L*L));
 
         chi = mean(Chi);
-        dchi = Jackknife(Chi, {20,50,10});
+        dchi = Jackknife_error(Chi, 20);
 }
 
 
 //-----------------------------------------//
 int main(){
     srand(time(0));
-    int L, Ntherm, Nmeas, Nsteps, Nbeta;
+    int Ntherm, Nmeas, Nsteps, Nbeta;
     double beta_min, beta_max; 
     //---Input data---//
-    std::cout << "L: ";
-    std::cin >> L;
     std::cout << "beta min: "; 
     std::cin >> beta_min;
     std::cout << "beta max: ";
@@ -402,7 +375,7 @@ int main(){
     for (int i = 0; i < Nbeta; i++) {
         clock_t begin = clock();
         std::cout << "beta = " << Betas[i] << "  T = " << 1/Betas[i] << std::endl;
-        WA_XY3d(Betas[i], L, Ntherm, Nmeas, Nsteps);
+        WA_XY3d(Betas[i], Ntherm, Nmeas, Nsteps);
         sprintf(E_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], E, dE);
         sprintf(Cv_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], Cv, dCv);
         sprintf(Chi_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], chi, dchi);
