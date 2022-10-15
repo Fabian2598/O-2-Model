@@ -9,11 +9,12 @@
 
 
 double pi = 3.14159265359;
-double E = 0, En = 0, En2 = 0, chi = 0, Cv = 0;
-double dchi, dCv, dE, dE2;
+double E = 0, En = 0, En2 = 0, chi = 0, Cv = 0, rho = 0;
+double dchi, dCv, dE, dE2, drho;
 double R; //Acceptance ratio
+double Wx = 0, Wy = 0;
 
-int L = 32;
+int L = 8;
 std::vector<int> Ira{ rand() % L, rand() % L};
 std::vector<int> Masha = {Ira[0], Ira[1]};
 
@@ -221,6 +222,17 @@ inline void EnergyWA(double beta, std::vector<double> Inu, std::vector<double> I
     En2 += En*En;
 }
 
+//----Computes the spin stifness------//
+inline void SpinStiffness(double beta){
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            Wx += FluxX[i][j];
+            Wy += FluxY[i][j];
+        }
+    }
+    rho = (Wx*Wx + Wy*Wy)/ (2*beta);
+}
+
 //Acceptance Ratio//
 inline void AccRatio(int mu, double beta, std::vector<double> Inu, std::vector<double> Inu1, std::vector<double> Inu2){
     //This function computes the acceptance ratio based on the flux between
@@ -272,7 +284,7 @@ void WA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
     struct BESSELTAB Table = BesselITable(beta,10); //This computes the modified Bessel functions and its derivatives up to nu = 10.
     std::vector<double> Inu = Table.Inu, Inu1 = Table.Inu1, Inu2 = Table.Inu2;
 
-    std::vector<double> Energy(Nmeas), Energy2(Nmeas), Chi(Nmeas);
+    std::vector<double> Energy(Nmeas), Energy2(Nmeas), Chi(Nmeas), Rho(Nmeas);
     double tau = 0;
     //-----Thermalization------//
     for(int i = 0; i < Ntherm; i++){
@@ -293,7 +305,10 @@ void WA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
             EnergyWA(beta, Inu, Inu1, Inu2);
             Energy[count] = En; Energy2[count] = En2;
             En = 0, En2 = 0;
-            Chi[count] = tau;       
+            Chi[count] = tau;  
+            SpinStiffness(beta);
+            Rho[count] = rho;
+            Wx = 0; Wy = 0;
             Ira = { rand() % L, rand() % L };
             Masha = {Ira[0],Ira[1]};
             tau = 0;
@@ -323,6 +338,9 @@ void WA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
 
         chi = mean(Chi);
         dchi = Jackknife_error(Chi, 20);
+
+        rho = mean(Rho);
+        drho = Jackknife_error(Rho, 20);
 }
 
 
@@ -345,41 +363,48 @@ int main(){
     std::cout << "Step (sweeps between measurements: ";
     std::cin >> Nsteps;
     std::cout << " " << std::endl;
+    std::vector<double> Betas(Nbeta);
+    if (Nbeta == 1){ 
+        Betas = {beta_min}; 
+    }
+    else{ 
+        Betas = linspace(beta_min,beta_max, Nbeta);
+    }
+    char NameData[50], Data_str[100];
 
-    std::vector<double> Betas = linspace(beta_min,beta_max, Nbeta);
-    char NameCv[50], Cv_str[50], NameChi[50], Chi_str[50], NameE[50], E_str[50], NameTime[50], Time_str[50];
-    sprintf(NameE, "2DXY_E_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameCv, "2DXY_Cv_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameChi, "2DXY_Chi_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameTime, "2DXY_Time_L%d_Meas%d.txt", L, Nmeas);
-    std::ofstream Cvfile; std::ofstream Chifile; std::ofstream Efile; std::ofstream Timefile;
-    Cvfile.open(NameCv); Chifile.open(NameChi); Efile.open(NameE); Timefile.open(NameTime);
 
     for (int i = 0; i < Nbeta; i++) {
+        sprintf(NameData, "2DXY_L%d_Meas%d_b%.-4g.dat", L, Nmeas,Betas[i]);
+        std::ofstream Datfile;
+        Datfile.open(NameData);
         clock_t begin = clock();
         std::cout << "beta = " << Betas[i] << "  T = " << 1/Betas[i] << std::endl;
         WA_XY2d(Betas[i], Ntherm, Nmeas, Nsteps);
-        sprintf(E_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], E, dE);
-        sprintf(Cv_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], Cv, dCv);
-        sprintf(Chi_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], chi, dchi);
-        Efile << E_str;
-        Cvfile << Cv_str;
-        Chifile << Chi_str;
+        sprintf(Data_str,"%-30d%-30d%-30d%-30d%-30.17g\n",Ntherm,Nmeas,Nsteps,L,Betas[i]);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", E, dE);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", Cv, dCv);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", chi, dchi);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", rho, drho);
+        Datfile << Data_str;
+        
         std::cout << "E = " << E << " +- " << dE << std::endl;
         std::cout << "Cv = " << Cv << " +- " << dCv << std::endl;
         std::cout << "Chi = " << chi << " +- " << dchi << std::endl; 
-        E = 0; dE= 0; Cv = 0; dCv = 0; chi = 0; dchi = 0;
+        std::cout << "Rho = " << rho << " +- " << drho << std::endl;
+        E = 0; dE= 0; Cv = 0; dCv = 0; chi = 0; dchi = 0; rho = 0; drho = 0;
         //----Computing time----//
         clock_t end = clock();
         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        sprintf(Time_str, "%-30.17g%-30.17g\n", Betas[i],elapsed_secs);
-        Timefile << Time_str;
+        sprintf(Data_str, "%-30.17g", elapsed_secs);
+        Datfile << Data_str; 
         std::cout << "Time = " << elapsed_secs << " s" << std::endl;
         std::cout << "------------------------------" << std::endl;
+        Datfile.close();
     }
-    Efile.close();
-    Cvfile.close();
-    Chifile.close();
-    Timefile.close();
+    
     return 0;      
 }
