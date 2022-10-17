@@ -8,7 +8,7 @@ Preliminar results are in the [Results](O(2)Model/Results) folder.
 
 The .ipynb files are testing versions written in python. They do work, however they are not as fast as the C++ versions.
 
-In order to run the C++ versions one has to compile [2DXY.cpp](O(2)Model/2DXY.cpp) or [3DXY.cpp](O(2)Model/2DXY.cpp) for a specific value of $L$.
+In order to run the C++ versions one has to compile [2DXY.cpp](O(2)Model/2DXY.cpp) or [3DXY.cpp](O(2)Model/3DXY.cpp) for a specific value of $L$.
 ```console
 g++ 2DXY.cpp -o 2DXYL8.x
 ```
