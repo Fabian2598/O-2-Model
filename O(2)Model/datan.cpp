@@ -82,10 +82,10 @@ int main(){
         char NameRho[50], Rho_str[50];
 
         if (i == 0){
-            sprintf(NameE, "2DXY_E_L%d_Meas%d.txt", L, Nmeas);
-            sprintf(NameCv, "2DXY_Cv_L%d_Meas%d.txt", L, Nmeas);
-            sprintf(NameChi, "2DXY_Chi_L%d_Meas%d.txt", L, Nmeas);
-            sprintf(NameTime, "2DXY_Time_L%d_Meas%d.txt", L, Nmeas);
+            sprintf(NameE, "%dDXY_E_L%d_Meas%d.txt", d,L, Nmeas);
+            sprintf(NameCv, "%dDXY_Cv_L%d_Meas%d.txt", d, L, Nmeas);
+            sprintf(NameChi, "%dDXY_Chi_L%d_Meas%d.txt", d, L, Nmeas);
+            sprintf(NameTime, "%dDXY_Time_L%d_Meas%d.txt", d, L, Nmeas);
             Cvfile.open(NameCv); Chifile.open(NameChi); Efile.open(NameE); Timefile.open(NameTime); 
             if (d == 2){sprintf(NameRho, "2DXY_Rho_L%d_Meas%d.txt", L, Nmeas); Rhofile.open(NameRho);}
         }

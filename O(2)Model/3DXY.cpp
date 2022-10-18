@@ -13,7 +13,7 @@ double E = 0, En = 0, En2 = 0, chi = 0, Cv = 0;
 double dchi, dCv, dE, dE2;
 double R; //Acceptance ratio
 
-int L = 4;
+int L = 24;
 std::vector<int> Ira{ rand() % L, rand() % L , rand() % L};
 std::vector<int> Masha = {Ira[0], Ira[1], Ira[2]};
 
@@ -363,25 +363,31 @@ int main(){
     std::cin >> Nsteps;
     std::cout << " " << std::endl;
 
-    std::vector<double> Betas = linspace(beta_min,beta_max, Nbeta);
-    char NameCv[50], Cv_str[50], NameChi[50], Chi_str[50], NameE[50], E_str[50], NameTime[50], Time_str[50];
-    sprintf(NameE, "3DXY_E_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameCv, "3DXY_Cv_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameChi, "3DXY_Chi_L%d_Meas%d.txt", L, Nmeas);
-    sprintf(NameTime, "3DXY_Time_L%d_Meas%d.txt", L, Nmeas);
-    std::ofstream Cvfile; std::ofstream Chifile; std::ofstream Efile; std::ofstream Timefile;
-    Cvfile.open(NameCv); Chifile.open(NameChi); Efile.open(NameE); Timefile.open(NameTime);
+    std::vector<double> Betas(Nbeta);
+    if (Nbeta == 1){ 
+        Betas = {beta_min}; 
+    }
+    else{ 
+        Betas = linspace(beta_min,beta_max, Nbeta);
+    }
+    char NameData[50], Data_str[100];
 
     for (int i = 0; i < Nbeta; i++) {
+        sprintf(NameData, "3DXY_L%d_Meas%d_b%.-4g.dat", L, Nmeas,Betas[i]);
+        std::ofstream Datfile;
+        Datfile.open(NameData);
         clock_t begin = clock();
         std::cout << "beta = " << Betas[i] << "  T = " << 1/Betas[i] << std::endl;
         WA_XY3d(Betas[i], Ntherm, Nmeas, Nsteps);
-        sprintf(E_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], E, dE);
-        sprintf(Cv_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], Cv, dCv);
-        sprintf(Chi_str, "%-30.17g%-30.17g%-30.17g\n", Betas[i], chi, dchi);
-        Efile << E_str;
-        Cvfile << Cv_str;
-        Chifile << Chi_str;
+        sprintf(Data_str,"%-30d%-30d%-30d%-30d%-30.17g\n",Ntherm,Nmeas,Nsteps,L,Betas[i]);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", E, dE);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", Cv, dCv);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", chi, dchi);
+        Datfile << Data_str;
+
         std::cout << "E = " << E << " +- " << dE << std::endl;
         std::cout << "Cv = " << Cv << " +- " << dCv << std::endl;
         std::cout << "Chi = " << chi << " +- " << dchi << std::endl; 
@@ -389,14 +395,11 @@ int main(){
         //----Computing time----//
         clock_t end = clock();
         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        sprintf(Time_str, "%-30.17g%-30.17g\n", Betas[i],elapsed_secs);
-        Timefile << Time_str;
+        sprintf(Data_str, "%-30.17g", elapsed_secs);
+        Datfile << Data_str; 
         std::cout << "Time = " << elapsed_secs << " s" << std::endl;
         std::cout << "------------------------------" << std::endl;
+        Datfile.close(); 
     }
-    Efile.close();
-    Cvfile.close();
-    Chifile.close();
-    Timefile.close();
-    return 0;      
+    return 0;  
 }
