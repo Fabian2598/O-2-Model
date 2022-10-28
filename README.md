@@ -1,4 +1,4 @@
-# 2d and 3d O(2) model and 2d Ising model with the Worm Algorithm.
+# 2d and 3d O(2) model and 2d Ising model with the Worm Algorithm and the Cluster algorithm.
 ### The programs compute the energy, the magnetic susceptibility and the specific heat. In the 2d O(2) model the spin stiffness is computed as well. 
 
 We work with square lattices of size $L^2$ for 2d and with cubic lattices of size $L^3$ for 3d. The errors are computed by using the jackknife method.
@@ -8,7 +8,7 @@ Preliminar results are in the [Results](O(2)Model/Results) folder.
 
 The .ipynb files are testing versions written in python. They do work, however they are not as fast as the C++ versions.
 
-In order to run the C++ versions one has to compile [2DXY.cpp](O(2)Model/2DXY.cpp) or [3DXY.cpp](O(2)Model/3DXY.cpp) for a specific value of $L$.
+In order to run the C++ versions one has to compile [2DXY.cpp](O(2)Model/WormAlgorithm/2DXY.cpp) or [3DXY.cpp](O(2)Model/WormAlgorithm/3DXY.cpp) for a specific value of $L$.
 ```console
 g++ 2DXY.cpp -o 2DXYL8.x
 ```
@@ -69,3 +69,6 @@ The program generates .txt files with the results written in columns. Their deta
 * 2DXY_E_L8_Meas10000.txt: $\beta$, $E$, $E$ error.
 * 2DXY_Time_L8_Meas10000: $\beta$, computing time in seconds.
 * 2DXY_Rho_L8_Meas10000: $\beta$, $\rho_s$, $\rho_s$ error. 
+
+
+A comparison between the results of the two algorithms is shown in the [Results](O(2)Model/Results) folder (they have the word comparison at the end).
