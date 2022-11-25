@@ -11,19 +11,21 @@
 double pi = 3.14159265359;
 double E = 0, En2 = 0, M = 0, M2=0, chi = 0, Cv = 0;
 double dchi, dM, dM2, dCv, dE, dE2;
-double p, reflected_phi;//Acceptance ratio and reflected angle
+double p, reflected_phi; //Acceptance ratio and reflected angle
 int label = 0;
 
 constexpr int L = 4;
-constexpr  int maxsize = L*L;
+constexpr  int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
-std::vector<std::vector<double>> SpinLattice(L, std::vector<double>(L,0));
-std::vector<std::vector<double>> SpinLatticeR(L, std::vector<double>(L,0));
 
-std::vector<std::vector<int>> xBonds(L, std::vector<int>(L,0));
-std::vector<std::vector<int>> yBonds(L, std::vector<int>(L,0));
-std::vector<std::vector<int>> Labels(L, std::vector<int>(L,0)); //Labels of each site.
+//We store the spin angles in the following matrices
+std::vector<std::vector<std::vector<double>>> SpinLattice(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); 
+std::vector<std::vector<std::vector<double>>> SpinLatticeR(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); //Reflected angles
 
+std::vector<std::vector<std::vector<int>>> xBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+std::vector<std::vector<std::vector<int>>> yBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+std::vector<std::vector<std::vector<int>>> zBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+std::vector<std::vector<std::vector<int>>> Labels(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
 
 
 void printmatrix(std::vector<std::vector<int>> A){
@@ -136,17 +138,24 @@ int modulo(int n, int m) {
 inline void EnergyCA(){
     for (int i = 0; i<L; i++){
         for (int j = 0; j<L; j++){
-            E += -cos(SpinLattice[i][j] - SpinLattice[i][modulo(j+1,L)]) - cos(SpinLattice[i][j] - SpinLattice[modulo(i+1,L)][j]);
+            for(int k = 0; k<L; k++){
+                E += -cos(SpinLattice[i][j][k] - SpinLattice[i][modulo(j+1,L)][k]) - cos(SpinLattice[i][j][k] - SpinLattice[modulo(i+1,L)][j][k])
+                -cos(SpinLattice[i][j][k] - SpinLattice[i][j][modulo(k+1,L)]);
+            } 
+
         }
     }
 }
 
+//-----Computes the magnetization of a configuration-----//
 inline void Magnetization(){
     double sx=0, sy=0;
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            sx += cos(SpinLattice[i][j]);
-            sy += sin(SpinLattice[i][j]);
+            for(int k = 0; k<L; k++){
+                sx += cos(SpinLattice[i][j][k]);
+                sy += sin(SpinLattice[i][j][k]);
+            }
         }
     }
     M = sqrt(sx*sx + sy*sy);
@@ -157,7 +166,7 @@ inline void Reflection(std::vector<int> site, double rphi){
     //site --> site of the SpinLattice where to be reflected
     //r --> angle of a 2D random vector 
     // returns the reflected angle with respect to the Wolff line
-    double phi = SpinLattice[site[0]][site[1]];
+    double phi = SpinLattice[site[0]][site[1]][site[2]];
     double sx = cos(phi), sy = sin(phi), rx = cos(rphi), ry = sin(rphi); //Vector components
     double sr_x = sx-2*( sx*rx + sy*ry )*rx, sr_y = sy-2*( sx*rx + sy*ry )*ry; //Reflected components
     //We compute the angle depending on the quadrant where the reflected spin is directed
@@ -178,40 +187,54 @@ inline void Reflection(std::vector<int> site, double rphi){
 //-----Function that generates bonds between neighbouring sites-----//
 inline void Bonds(double beta){
     // modifies xBonds (bonds in the x direction)
-    //          yBonds (bonds in the y direction)
+    //          yBonds (bonds in the -y direction)
+    //          zBonds (bonds in the -z direction)
     //          SpinLatticeR (Lattice with the angles of the reflected spins)
     double rphi = rand_range(0.0, 2*pi);
     double rv_x = cos(rphi), rv_y = sin(rphi); //vector associated to the rphi angle
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            Reflection({i,j}, rphi);//We reflect the spin
-            SpinLatticeR[i][j] = reflected_phi; 
-            double sx = cos(SpinLattice[i][j]), sy = sin(SpinLattice[i][j]);
-            double s_dot_r = rv_x*sx + rv_y*sy; //dot product between r and s.
+            for(int k = 0; k<L; k++){
+                Reflection({i,j,k}, rphi);//We reflect the spin
+                SpinLatticeR[i][j][k] = reflected_phi; 
+                double sx = cos(SpinLattice[i][j][k]), sy = sin(SpinLattice[i][j][k]);
+                double s_dot_r = rv_x*sx + rv_y*sy; //dot product between r and s.
 
-            //---Creating bond with the right neigbour---//
-            double sv_x = cos(SpinLattice[i][modulo(j+1,L)]), sv_y = sin(SpinLattice[i][modulo(j+1,L)]); //Neighbour spin
+                //---Creating bond with neigbour at [i][j+1][k]---//
+                double sv_x = cos(SpinLattice[i][modulo(j+1,L)][k]), sv_y = sin(SpinLattice[i][modulo(j+1,L)][k]); //Neighbour spin
             
-            double sv_dot_r = rv_x*sv_x + rv_y*sv_y;
-            if (s_dot_r*sv_dot_r >=0){
-                p = 1-exp(-2*beta*s_dot_r*sv_dot_r);
+                double sv_dot_r = rv_x*sv_x + rv_y*sv_y;
+                if (s_dot_r*sv_dot_r >=0){
+                    p = 1-exp(-2*beta*s_dot_r*sv_dot_r);
+                }
+                else{
+                    p = 0;
+                }
+                double R = ((double) rand() / (RAND_MAX));
+                if (R<p){xBonds[i][j][k] = 1;}
+                //---Creating bond with neigbour at [i+1][j][k]---//
+                sv_x = cos(SpinLattice[modulo(i+1,L)][j][k]); sv_y = sin(SpinLattice[modulo(i+1,L)][j][k]);
+                sv_dot_r = rv_x*sv_x + rv_y*sv_y;
+                if (s_dot_r*sv_dot_r >=0){
+                    p = 1-exp(-2*beta*s_dot_r*sv_dot_r);
+                }
+                else{
+                    p = 0;
+                }
+                R = ((double) rand() / (RAND_MAX));
+                if (R<p){yBonds[i][j][k] = 1;}
+                //---Creating bond with neigbour at [i][j][k+1]---//
+                sv_x = cos(SpinLattice[i][j][modulo(k+1,L)]); sv_y = sin(SpinLattice[i][j][modulo(k+1,L)]);
+                sv_dot_r = rv_x*sv_x + rv_y*sv_y;
+                if (s_dot_r*sv_dot_r >=0){
+                    p = 1-exp(-2*beta*s_dot_r*sv_dot_r);
+                }
+                else{
+                    p = 0;
+                }
+                R = ((double) rand() / (RAND_MAX));
+                if (R<p){zBonds[i][j][k] = 1;}
             }
-            else{
-                p = 0;
-            }
-            double R = ((double) rand() / (RAND_MAX));
-            if (R<p){xBonds[i][j] = 1;}
-            //---Creating bond with the lower neigbour---//
-            sv_x = cos(SpinLattice[modulo(i+1,L)][j]); sv_y = sin(SpinLattice[modulo(i+1,L)][j]);
-            sv_dot_r = rv_x*sv_x + rv_y*sv_y;
-            if (s_dot_r*sv_dot_r >=0){
-                p = 1-exp(-2*beta*s_dot_r*sv_dot_r);
-            }
-            else{
-                p = 0;
-            }
-            R = ((double) rand() / (RAND_MAX));
-            if (R<p){yBonds[i][j] = 1;}
         }
     }
 
@@ -243,50 +266,83 @@ inline void HoshenKopelman(){
     //          Labels --> L x L matrix with the labels at each site
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            std::vector<int> LBond(4), UBond(4), pLabels;
-            int bonds = 0, pLabel;
-            if (i>0 && yBonds[i-1][j] == 1){
-                UBond[bonds] = i - 1;
-                LBond[bonds] = j;
-                bonds += 1;
-                pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]]);
-                pLabels.push_back(pLabel);
-            }
-            if (i == L-1 && yBonds[i][j] == 1){
-                UBond[bonds] = 0;
-                LBond[bonds] = j;
-                bonds += 1;
-                pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]]);
-                pLabels.push_back(pLabel);
-            }
-            if (j >0 && xBonds[i][j-1] == 1){
-                UBond[bonds] = i;
-                LBond[bonds] = j-1;
-                bonds += 1;
-                pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]]);
-                pLabels.push_back(pLabel);
-            }
-            if (j == L-1 && xBonds[i][j] == 1){
-                UBond[bonds] = i;
-                LBond[bonds] == 0;
-                bonds += 1;
-                pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]]);
-                pLabels.push_back(pLabel);
-            }
+            for(int k = 0; k<L; k++){
+                std::vector<int> LBond(6), UBond(6), TBond(6), pLabels;
+                int bonds = 0, pLabel;
+                if (i>0 && yBonds[i-1][j][k] == 1){
+                    //std::cout << " 1 " << std::endl;
+                    UBond[bonds] = i - 1;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                    //std::cout << " 2 " << std::endl;
+                }
+                if (i == L-1 && yBonds[i][j][k] == 1){
+                    //std::cout << " 3 " << std::endl;
+                    UBond[bonds] = 0;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                    //std::cout << " 4 " << std::endl;
+                }
+                if (j >0 && xBonds[i][j-1][k] == 1){
+                   // std::cout << " 5 " << std::endl;
+                    UBond[bonds] = i;
+                    LBond[bonds] = j-1;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                   // std::cout << " 6 " << std::endl;
+                }
+                if (j == L-1 && xBonds[i][j][k] == 1){
+                   // std::cout << " 7 " << std::endl;
+                    UBond[bonds] = i;
+                    LBond[bonds] == 0;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                   // std::cout << " 8 " << std::endl;
+                }
+                if (k>0 && zBonds[i][j][k-1] == 1){
+                   // std::cout << " 9 " << std::endl;
+                    UBond[bonds] = i;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k-1;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                   // std::cout << " 10 " << std::endl;
+                }
+                if (k == L-1 && zBonds[i][j][k] == 1){
+                   // std::cout << " 11 " << std::endl;
+                    UBond[bonds] = i;
+                    LBond[bonds] = j;
+                    TBond[bonds] = 0;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                   // std::cout << " 12 " << std::endl;
+                }
 
-            if (bonds == 0){
-                Labels[i][j] = label;
-                CLabels[label] = label;
-                label += 1;
-            }
-            else{
-
-                int minLabel = *std::min_element(pLabels.begin(), pLabels.end());
-                Labels[i][j] = minLabel;
-                for (int b = 0; b<bonds; b++){
-                    pLabel = pLabels[b];
-                    CLabels[pLabel] = minLabel;
-                    Labels[UBond[b]][LBond[b]] = minLabel;
+                if (bonds == 0){
+                    Labels[i][j][k] = label;
+                    CLabels[label] = label;
+                    label += 1;
+                }
+                else{
+                    int minLabel = *std::min_element(pLabels.begin(), pLabels.end());
+                    Labels[i][j][k] = minLabel;
+                    for (int b = 0; b<bonds; b++){
+                        pLabel = pLabels[b];
+                        CLabels[pLabel] = minLabel;
+                        Labels[UBond[b]][LBond[b]][TBond[b]] = minLabel;
+                    }
                 }
             }
         }
@@ -314,9 +370,11 @@ inline void flip(){
     }
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            index = indexfinder(CLabels[find(Labels[i][j])]);    //antes era find(Labels[i][j]) -1                  
-            if (probs[index] < 0.5){
-                SpinLattice[i][j] = SpinLatticeR[i][j];
+            for(int k = 0; k<L; k++){
+                index = indexfinder(CLabels[find(Labels[i][j][k])]);                     
+                if (probs[index] < 0.5){
+                    SpinLattice[i][j][k] = SpinLatticeR[i][j][k];
+                }
             }
         }
     }
@@ -326,16 +384,18 @@ inline void flip(){
 inline void reset(){
     for(int i = 0; i<L; i++){
         for(int j=0; j<L; j++){
-            xBonds[i][j] = 0; yBonds[i][j] = 0; Labels[i][j] = 0; SpinLatticeR[i][j] = 0;
+            for(int k = 0; k<L; k++){
+                xBonds[i][j][k] = 0; yBonds[i][j][k] = 0; zBonds[i][j][k] = 0; Labels[i][j][k] = 0; SpinLatticeR[i][j][k] = 0;
+            } 
         }
     }
-    for(int i = 0; i<L*L; i++){
+    for(int i = 0; i<label; i++){
         CLabels[i] = 0;
     }
     label = 0;
 }    
 
-void CA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
+void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
     std::vector<double> Energy(Nmeas), Energy2(Nmeas), Magn(Nmeas), Magn2(Nmeas);
     //Thermalization//
     for(int i = 0; i<Ntherm; i++){
@@ -366,10 +426,10 @@ void CA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
     }
     E = mean(Energy); dE = Jackknife_error(Energy, 20);
     En2 = mean(Energy2); dE2 = Jackknife_error(Energy2, 20);
-    Cv = beta * beta * (En2-E*E) /(L*L); dCv = absVal(beta * beta * (dE2 + 2*E*dE)/(L*L));
+    Cv = beta * beta * (En2-E*E) /(L*L*L); dCv = absVal(beta * beta * (dE2 + 2*E*dE)/(L*L*L));
     M = mean(Magn); dM = Jackknife_error(Magn, 20);
     M2 = mean(Magn2); dM2 = Jackknife_error(Magn2, 20);
-    chi = (M2-M*M) /(L*L); dchi = absVal((dM2 + 2*M*dM)/(L*L));
+    chi = (M2-M*M) /(L*L*L); dchi = absVal((dM2 + 2*M*dM)/(L*L*L));
 }
 
 //-----------------------------------------//
@@ -402,14 +462,14 @@ srand(time(0));
     for (int i = 0; i < Nbeta; i++) {
         int A = Betas[i];
         int beta= (Betas[i] - A) * 10000;
-        if (Betas[i] < 1){sprintf(NameData, "2DXY_L%d_Meas%d_b0%d.dat", L, Nmeas,beta);}
-        else{beta = beta + (int) Betas[i] * 10000; sprintf(NameData, "2DXY_L%d_Meas%d_b%d.dat", L, Nmeas,beta);}
+        if (Betas[i] < 1){sprintf(NameData, "3DXY_L%d_Meas%d_b0%d.dat", L, Nmeas,beta);}
+        else{beta = beta + (int) Betas[i] * 10000; sprintf(NameData, "3DXY_L%d_Meas%d_b%d.dat", L, Nmeas,beta);}
         
         std::ofstream Datfile;
         Datfile.open(NameData);
         clock_t begin = clock();
         std::cout << "beta = " << Betas[i] << "  T = " << 1/Betas[i] << std::endl;
-        CA_XY2d(Betas[i], Ntherm, Nmeas, Nsteps);
+        CA_XY3d(Betas[i], Ntherm, Nmeas, Nsteps);
         sprintf(Data_str,"%-30d%-30d%-30d%-30d%-30.17g\n",Ntherm,Nmeas,Nsteps,L,Betas[i]);
         Datfile << Data_str;
         sprintf(Data_str, "%-30.17g%-30.17g\n", E, dE);
