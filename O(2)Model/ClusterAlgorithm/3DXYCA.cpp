@@ -14,7 +14,7 @@ double dchi, dM, dM2, dCv, dE, dE2;
 double p, reflected_phi; //Acceptance ratio and reflected angle
 int label = 0;
 
-constexpr int L = 4;
+constexpr int L = 16;
 constexpr  int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 
@@ -270,64 +270,52 @@ inline void HoshenKopelman(){
                 std::vector<int> LBond(6), UBond(6), TBond(6), pLabels;
                 int bonds = 0, pLabel;
                 if (i>0 && yBonds[i-1][j][k] == 1){
-                    //std::cout << " 1 " << std::endl;
                     UBond[bonds] = i - 1;
                     LBond[bonds] = j;
                     TBond[bonds] = k;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                    //std::cout << " 2 " << std::endl;
                 }
                 if (i == L-1 && yBonds[i][j][k] == 1){
-                    //std::cout << " 3 " << std::endl;
                     UBond[bonds] = 0;
                     LBond[bonds] = j;
                     TBond[bonds] = k;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                    //std::cout << " 4 " << std::endl;
                 }
                 if (j >0 && xBonds[i][j-1][k] == 1){
-                   // std::cout << " 5 " << std::endl;
                     UBond[bonds] = i;
                     LBond[bonds] = j-1;
                     TBond[bonds] = k;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                   // std::cout << " 6 " << std::endl;
                 }
                 if (j == L-1 && xBonds[i][j][k] == 1){
-                   // std::cout << " 7 " << std::endl;
                     UBond[bonds] = i;
                     LBond[bonds] == 0;
                     TBond[bonds] = k;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                   // std::cout << " 8 " << std::endl;
                 }
                 if (k>0 && zBonds[i][j][k-1] == 1){
-                   // std::cout << " 9 " << std::endl;
                     UBond[bonds] = i;
                     LBond[bonds] = j;
                     TBond[bonds] = k-1;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                   // std::cout << " 10 " << std::endl;
                 }
                 if (k == L-1 && zBonds[i][j][k] == 1){
-                   // std::cout << " 11 " << std::endl;
                     UBond[bonds] = i;
                     LBond[bonds] = j;
                     TBond[bonds] = 0;
                     bonds += 1;
                     pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
                     pLabels.push_back(pLabel);
-                   // std::cout << " 12 " << std::endl;
                 }
 
                 if (bonds == 0){
@@ -352,7 +340,7 @@ inline void HoshenKopelman(){
 
 inline int indexfinder(int element){
     int i = 0;
-    while (i < L*L){
+    while (i < L*L*L){
         if (CLabels[i] == element){
             break;
         }
