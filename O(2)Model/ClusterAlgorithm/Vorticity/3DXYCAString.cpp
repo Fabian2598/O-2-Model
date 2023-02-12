@@ -6,16 +6,17 @@
 #include <ctime>
 #include <cmath> 
 #include <algorithm>
-#include <unordered_set>
+#include <set>
 #include "statistics.h"
 
 
 double pi = 3.14159265359;
-double Vort, Antvort, strdensity;
+double Vort=0, Antvort=0, strdensity=0;
 double dVort, dAntvort, dstrdensity;
 double p;//Acceptance ratio
-int label = 0, PlaqLabel = 0;
+int label = 0;
 double phi; //Spin angle
+int PlaqLabel=1;
 
 constexpr int L = 8;
 constexpr  int maxsize = L*L*L;
@@ -44,7 +45,7 @@ std::vector<std::vector<std::vector<int>>> Labels(L, std::vector<std::vector<int
 std::vector<std::vector<std::vector<std::vector<int>>>> VortexP(3, std::vector<std::vector<std::vector<int>>>(L, std::vector<std::vector<int>>(L, std::vector<int>(L,0))));
 std::vector<std::vector<std::vector<std::vector<int>>>> MarkerPIn(3, std::vector<std::vector<std::vector<int>>>(L, std::vector<std::vector<int>>(L, std::vector<int>(L,0))));
 std::vector<std::vector<std::vector<std::vector<int>>>> MarkerPOut(3, std::vector<std::vector<std::vector<int>>>(L, std::vector<std::vector<int>>(L, std::vector<int>(L,0))));
-std::vector<std::vector<std::vector<std::vector<int>>>> LabelP(3, std::vector<std::vector<std::vector<int>>>(L, std::vector<std::vector<int>>(L, std::vector<int>(L,0))));
+std::vector<std::vector<std::vector<std::vector<int>>>> LabelsP(3, std::vector<std::vector<std::vector<int>>>(L, std::vector<std::vector<int>>(L, std::vector<int>(L,0))));
 
 
 
@@ -92,7 +93,7 @@ inline void Vorticity(){
                 correction(fmodulo(theta_iy-theta_ixy,2*pi)) +
                 correction(fmodulo(theta_i-theta_iy,2*pi)) );
                 if ( absVal(q-1) <= 1e-6) {Vort += 1; VortexP[0][i][j][k] = 1;}
-                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[0][i][j][k] = 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[0][i][j][k] = -1;}
                 
 
                 //Plaquette 2
@@ -101,7 +102,7 @@ inline void Vorticity(){
                 correction(fmodulo(theta_iy-theta_izy,2*pi)) +
                 correction(fmodulo(theta_i-theta_iy,2*pi)) );
                 if ( absVal(q-1) <= 1e-6) {Vort += 1; VortexP[1][i][j][k] = 1;}
-                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[1][i][j][k] = 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[1][i][j][k] = -1;}
 
                 //Plaquette 3
                 q = 1/(2*pi) * ( correction(fmodulo(theta_ix-theta_i,2*pi)) + 
@@ -109,7 +110,7 @@ inline void Vorticity(){
                 correction(fmodulo(theta_iz-theta_ixz,2*pi)) +
                 correction(fmodulo(theta_i-theta_iz,2*pi)) );
                 if ( absVal(q-1) <= 1e-6) {Vort += 1; VortexP[2][i][j][k] = 1;}
-                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[2][i][j][k] = 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[2][i][j][k] = -1;}
             }
         }
     }  
@@ -122,131 +123,200 @@ inline int findPlaq(int x){
     return x;
 }
 
-inline void make_strings(){
+inline void revise_cube(int plaquette, int i, int j, int k){
+    //revises the cube that belongs to the site i,j,k and returns the
+    //new coordinates and new plaquette.
+    std::vector<int> indices, plaqueta, xcoord, ycoord, zcoord;
+    int plaquette_ini, i_ini, j_ini, k_ini;
     int a, b;
+    int plaquettes_avail = 0; 
+    if (plaquette <=2){
+        if (plaquette == 0){a=1; b=2;}
+        else if (plaquette == 1){a=0; b=2;}
+        else if(plaquette == 2){a=0; b=1;}
+        plaquette_ini = plaquette; i_ini = i; j_ini = j; k_ini = k;
+        if (VortexP[plaquette][i][j][k] != 0 && MarkerPIn[plaquette][i][j][k] == 0){
+            MarkerPIn[plaquette][i][j][k] = 1; // We mark the inner face of the plaquette as visited.
+            if(VortexP[a][i][j][k] == -VortexP[plaquette][i][j][k] && MarkerPIn[a][i][j][k] == 0){ 
+                indices.push_back(0); plaqueta.push_back(a); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            if(VortexP[b][i][j][k] == -VortexP[plaquette][i][j][k] && MarkerPIn[b][i][j][k] == 0){ 
+                indices.push_back(1); plaqueta.push_back(b); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 3
+            if(VortexP[0][i][j][modulo(k-1,L)] == VortexP[plaquette][i][j][k] && MarkerPOut[0][i][j][modulo(k-1,L)] == 0){ 
+                indices.push_back(2); plaqueta.push_back(3); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(modulo(k-1,L)); plaquettes_avail+=1;}
+            //Plaquette 4
+            if(VortexP[1][i][modulo(j+1,L)][k] == VortexP[plaquette][i][j][k] && MarkerPOut[1][i][modulo(j+1,L)][k] == 0){ 
+                indices.push_back(3); plaqueta.push_back(4); xcoord.push_back(i); ycoord.push_back(modulo(j+1,L));
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 5
+            if(VortexP[2][modulo(i-1,L)][j][k] == VortexP[plaquette][i][j][k] && MarkerPOut[2][modulo(i-1,L)][j][k] == 0){ 
+                indices.push_back(4); plaqueta.push_back(5); xcoord.push_back(modulo(i-1,L)); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}   
+        }
+    }
+    else if (plaquette == 3){
+        plaquette_ini = 0; i_ini = i; j_ini = j; k_ini = modulo(k-1,L);
+        if (VortexP[0][i][j][modulo(k-1,L)] != 0 && MarkerPOut[0][i][j][modulo(k-1,L)] == 0){
+            MarkerPOut[0][i][j][modulo(k-1,L)] = 1; //We mark the outer face of the plaquette as visited.
+            //Plaquette 0   
+            if(VortexP[0][i][j][k] == VortexP[0][i][j][modulo(k-1,L)] && MarkerPIn[0][i][j][k] == 0){ 
+                indices.push_back(0); plaqueta.push_back(0); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 1
+            if(VortexP[1][i][j][k] == VortexP[0][i][j][modulo(k-1,L)] && MarkerPIn[1][i][j][k] == 0){ 
+                indices.push_back(1); plaqueta.push_back(1); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 2
+            if(VortexP[2][i][j][k] == VortexP[0][i][j][modulo(k-1,L)] && MarkerPIn[2][i][j][k] == 0){ 
+                indices.push_back(1); plaqueta.push_back(2); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 5
+            if(VortexP[2][modulo(i-1,L)][j][k] == -VortexP[0][i][j][modulo(k-1,L)] && MarkerPOut[2][modulo(i-1,L)][j][k] == 0){ 
+                indices.push_back(2); plaqueta.push_back(5); xcoord.push_back(modulo(i-1,L)); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 4
+            if(VortexP[1][i][modulo(j+1,L)][k] == -VortexP[0][i][j][modulo(k-1,L)] && MarkerPOut[1][i][modulo(j+1,L)][k] == 0){ 
+                indices.push_back(3); plaqueta.push_back(4); xcoord.push_back(i); ycoord.push_back(modulo(j+1,L));
+                zcoord.push_back(k); plaquettes_avail+=1;}
+        }
+    }
+    else if (plaquette == 4){
+        plaquette_ini = 1; i_ini = i; j_ini = modulo(j+1,L); k_ini = k;
+        if (VortexP[1][i][modulo(j+1,L)][k] != 0 && MarkerPOut[1][i][modulo(j+1,L)][k] == 0){           
+            MarkerPOut[1][i][modulo(j+1,L)][k] = 1;
+            //Plaquette 0
+            if(VortexP[0][i][j][k] == VortexP[1][i][modulo(j+1,L)][k] && MarkerPIn[0][i][j][k] == 0){ 
+                indices.push_back(0); plaqueta.push_back(0); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 1
+            if(VortexP[1][i][j][k] == VortexP[1][i][modulo(j+1,L)][k] && MarkerPIn[1][i][j][k] == 0){ 
+                indices.push_back(1); plaqueta.push_back(1); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 2
+            if(VortexP[2][i][j][k] == VortexP[1][i][modulo(j+1,L)][k] && MarkerPIn[2][i][j][k] == 0){ 
+                indices.push_back(2); plaqueta.push_back(2); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 3
+            if(VortexP[0][i][j][modulo(k-1,L)] == -VortexP[1][i][modulo(j+1,L)][k] && MarkerPOut[0][i][j][modulo(k-1,L)] == 0){ 
+                indices.push_back(3); plaqueta.push_back(3); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(modulo(k-1,L)); plaquettes_avail+=1;}
+            //Plaquette 5
+            if(VortexP[2][modulo(i-1,L)][j][k] == -VortexP[1][i][modulo(j+1,L)][k] && MarkerPOut[2][modulo(i-1,L)][j][k] == 0){ 
+                indices.push_back(4); plaqueta.push_back(5); xcoord.push_back(modulo(i-1,L)); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+        }
+    }
+    else if (plaquette == 5){
+        plaquette_ini = 2; i_ini = modulo(i-1,L); j_ini = j; k_ini = k;
+        if (VortexP[2][modulo(i-1,L)][j][k] != 0 && MarkerPOut[2][modulo(i-1,L)][j][k] == 0){
+            MarkerPOut[2][modulo(i-1,L)][j][k] = 1;
+            //Plaquette 0
+            if(VortexP[0][i][j][k] == VortexP[2][modulo(i-1,L)][j][k] && MarkerPIn[0][i][j][k] == 0){ 
+                indices.push_back(0); plaqueta.push_back(0); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 1
+            if(VortexP[1][i][j][k] == VortexP[2][modulo(i-1,L)][j][k] && MarkerPIn[1][i][j][k] == 0){ 
+                indices.push_back(1); plaqueta.push_back(1); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 2
+            if(VortexP[2][i][j][k] == VortexP[2][modulo(i-1,L)][j][k] && MarkerPIn[2][i][j][k] == 0){ 
+                indices.push_back(2); plaqueta.push_back(2); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(k); plaquettes_avail+=1;}
+            //Plaquette 3
+            if(VortexP[0][i][j][modulo(k-1,L)] == -VortexP[2][modulo(i-1,L)][j][k] && MarkerPOut[0][i][j][modulo(k-1,L)] == 0 ){ 
+                indices.push_back(3); plaqueta.push_back(3); xcoord.push_back(i); ycoord.push_back(j);
+                zcoord.push_back(modulo(k-1,L)); plaquettes_avail+=1;}
+            //Plaquette 4
+            if(VortexP[1][i][modulo(j+1,L)][k] == -VortexP[2][modulo(i-1,L)][j][k] && MarkerPOut[1][i][modulo(j+1,L)][k] == 0){ 
+                indices.push_back(4); plaqueta.push_back(4); xcoord.push_back(i); ycoord.push_back(modulo(j+1,L));
+                zcoord.push_back(k); plaquettes_avail+=1;}
+        }
+
+    }
+    std::vector<int> pLabels(2);
+    if (plaquettes_avail == 0){        
+        if (VortexP[plaquette_ini][i_ini][j_ini][k_ini] == 0){
+            LabelsP[plaquette_ini][i_ini][j_ini][k_ini] = -1;
+        }
+    }
+    else{
+        int inew=i, jnew=j, knew=k, pini;
+        int index = rand() % plaquettes_avail;
+        int pfin = plaqueta[index];
+
+        if (pfin == 0){knew = modulo(k+1,L); pini=3; MarkerPIn[0][i][j][k] = 1;} 
+        else if(pfin == 1){jnew = modulo(j-1,L); pini=4; MarkerPIn[1][i][j][k] = 1;} 
+        else if(pfin == 2){inew = modulo(i+1,L); pini=5; MarkerPIn[2][i][j][k] = 1;}
+        else if(pfin == 3){knew = modulo(k-1,L); pini=0; MarkerPOut[0][i][j][modulo(k-1,L)] = 1;}
+        else if (pfin == 4){jnew = modulo(j+1,L); pini=1; MarkerPOut[1][i][modulo(j+1,L)][k] = 1;}
+        else if (pfin == 5){inew = modulo(i-1,L); pini=2; MarkerPOut[2][modulo(i-1,L)][j][k] = 1;}  
+        int pnew, ifin, jfin, kfin;
+        //inew jnew and knew are the coordinates of the new cube
+        //i,j,k are the coordinates of the current cube
+        //Coordinates of the new plaquette in LabelsP notation
+        if (pfin < 3){pnew = pfin; ifin=i; jfin=j; kfin=k;}
+        else{pnew = pini; ifin=inew; jfin=jnew; kfin=knew;}
+        
+        pLabels[0] = findPlaq(LabelsP[plaquette_ini][i_ini][j_ini][k_ini]);
+        pLabels[1] = findPlaq(LabelsP[pnew][ifin][jfin][kfin]);
+
+        int minLabel = *std::min_element(pLabels.begin(), pLabels.end());
+        int maxLabel = *std::max_element(pLabels.begin(), pLabels.end());
+        if (maxLabel == 0){
+            LabelsP[plaquette_ini][i_ini][j_ini][k_ini] = PlaqLabel; //We make a new label with this plaquette.  
+            LabelsP[pnew][ifin][jfin][kfin] = PlaqLabel;
+            PlaqLabels[PlaqLabel] = PlaqLabel;
+            PlaqLabel += 1;
+        }
+        else if (maxLabel != 0 && minLabel == 0 ){
+            LabelsP[plaquette_ini][i_ini][j_ini][k_ini] = maxLabel; //We make a new label with this plaquette.  
+            LabelsP[pnew][ifin][jfin][kfin] = maxLabel;
+        }
+        else if (maxLabel != 0 && minLabel != 0){
+            LabelsP[plaquette_ini][i_ini][j_ini][k_ini] = minLabel; //We make a new label with this plaquette.  
+            LabelsP[pnew][ifin][jfin][kfin] = minLabel;
+            PlaqLabels[maxLabel] = minLabel;
+        }
+    } 
+
+    
+    
+}
+
+inline void make_strings(){
+    std::vector<int> myvector{0,1,2,3,4,5};
     for(int i = 0; i<L; i++){
         for(int j =0; j<L; j++){
             for(int k = 0; k<L; k++){
-                //Plaquette 1
-                for (int plaquette = 0; plaquette<3; plaquette++){
-                    if (plaquette == 0){a=1; b=2;}
-                    else if (plaquette == 1){a=0; b=2;}
-                    else if(plaquette == 2){a=0; b=1;}
-                    //If the plaquette has vorticity and it's not marked.
-                    if (VortexP[plaquette][i][j][k] != 0 && MarkerPIn[plaquette][i][j][k] == 0){
-                        std::vector<int> indices, plaqueta, xcoord, ycoord, zcoord;
-                        //Plaquette identifiers. The plaquettes that belong to the site (i,j,k) are identified with a and b.
-                        //0 --> VortexP[a][i][j][k], 1 --> VortexP[b][i][j][k], 2 --> VortexP[0][i][j][k-1],
-                        //3 --> VortexP[1][modulo(j+1,L)][k], 4 --> VortexP[2][modulo(i-1,L)][j][k].
-                        int plaquettes_avail = 0; //We revise whether any of the other five plaquettes of 
-                        // the cube at (i,j,k) have vorticity different from zero.
-                        if(VortexP[a][i][j][k] !=0){ indices.push_back(0); plaqueta.push_back(a); xcoord.push_back(i); ycoord.push_back(j);
-                        zcoord.push_back(k); plaquettes_avail+=1;}
-                        if(VortexP[b][i][j][k] !=0){ indices.push_back(1); plaqueta.push_back(b); xcoord.push_back(i); ycoord.push_back(j);
-                        zcoord.push_back(k); plaquettes_avail+=1;}
-                        if(VortexP[0][i][j][modulo(k-1,L)] !=0){ indices.push_back(2); plaqueta.push_back(0); xcoord.push_back(i); ycoord.push_back(j);
-                        zcoord.push_back(modulo(k-1,L)); plaquettes_avail+=1;}
-                        if(VortexP[1][i][modulo(j+1,L)][k] !=0){ indices.push_back(3); plaqueta.push_back(1); xcoord.push_back(i); ycoord.push_back(modulo(j+1,L));
-                        zcoord.push_back(k); plaquettes_avail+=1;}
-                        if(VortexP[2][modulo(i-1,L)][j][k] !=0){ indices.push_back(4); plaqueta.push_back(2); xcoord.push_back(modulo(i-1,L)); ycoord.push_back(j);
-                        zcoord.push_back(k); plaquettes_avail+=1;}
-                    
-                        MarkerPIn[plaquette][i][j][k] = 1; //We mark the current plaquette as visited by a string
-                        //if Plaquette at site i, j, k can't be connected with another plaquette we make a new label.
-                        //std::cout <<"plaquetas disponibles " << plaquettes_avail << std::endl;
-                        if (plaquettes_avail == 0){
-                        LabelP[plaquette][i][j][k] = PlaqLabel; 
-                        PlaqLabels[PlaqLabel] = PlaqLabel; 
-                        PlaqLabel += 1;
-                        }
-                        //Plaquette 1 can be connected with other plaquettes.
-                        else{
-                            //We randomly choose one of the available plaquettes.
-                            int index = rand() % plaquettes_avail; //indices[index] gives us the plaquette identifier
-                            //std::cout <<"identificador " << indices[index] << std::endl;
-                            //We only proceed if the plaquette is not marked.
-                            bool proceed = false;
-                            //In plaquettes, i.e. the ones that belong to the site (i,j,k).
-                            if (indices[index] == 0 || indices[index] == 1){
-                                //if plaqueta[index] is free to be connected we mark it and we proceed,
-                                //otherwise we continue with the next plaquette.
-                                if (MarkerPIn[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]]  == 0 ){
-                                    MarkerPIn[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]]  = 1; //We mark one face of the plaquette.
-                                    proceed = true;
-                                }
-                            }
-                            //Out plaquettes, i.e. the ones that don't belong to the site (i,j,k) but to its neighbours.
-                            else{
-                                //Plaquette is free to be connected
-                                if (MarkerPOut[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]] == 0){
-                                    MarkerPOut[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]] = 1; //We mark one face of the plaquette.
-                                    proceed = true;
-                                }
-                            
-                            }
-                            //std::cout << "proceed " << proceed << std::endl;
-                            if (proceed == true){
-                                std::vector<int> pLabels(2); 
-                                pLabels[0] = findPlaq(LabelP[plaquette][i][j][k]);
-                                pLabels[1] = findPlaq(LabelP[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]]);
-                                //std::cout << "current site label " << pLabels[0] << std::endl;
-                                //std::cout << "connect plaquette label " << pLabels[1] << std::endl;
-                                //If both plaquettes don't belong to any string, then we generate a new label.
-                                if (pLabels[0] == 0 && pLabels[1] == 0){
-                                    LabelP[plaquette][i][j][k] = PlaqLabel; //Current plaquette
-                                    LabelP[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]] = PlaqLabel; //Plaquette to be connected.
-                                    PlaqLabels[PlaqLabel] = PlaqLabel;
-                                    PlaqLabel += 1; 
-                                }
-                                //If one of the plaquettes belongs to a string, we relabel both plaquettes with the minimum proper label
-                                //(this is part of the HK algorithm)
-                                else if ((pLabels[0] == 0 && pLabels[1] != 0) || (pLabels[0] != 0 && pLabels[1] == 0)){
-                                    //std::cout << "aqui " << std::endl;
-                                    int maxLabel = *std::max_element(pLabels.begin(), pLabels.end()); //This has to be different from zero.
-                                    LabelP[plaquette][i][j][k] = maxLabel;
-                                    LabelP[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]] = maxLabel;
-                                    if (pLabels[0] != 0){PlaqLabels[pLabels[0]] = maxLabel;} //std::cout << "plabel " << pLabels[0] << std::endl;}
-                                    else if(pLabels[1] != 0){PlaqLabels[pLabels[1]] = maxLabel;} //std::cout << "plabel " << pLabels[1] << std::endl;}
-                                }
-                                else{
-                                    //std::cout << "aqui 2" << std::endl;
-                                    //both plaquettes belong to a string, then we must join the string.
-                                    int minLabel = *std::min_element(pLabels.begin(), pLabels.end());
-                                    LabelP[plaquette][i][j][k] = minLabel;
-                                    LabelP[plaqueta[index]][xcoord[index]][ycoord[index]][zcoord[index]] = minLabel;
-                                    PlaqLabels[pLabels[1]] = minLabel; 
-                                    
-                                }
-                            }
-                            
-                        }
-                        //std::cout << "" << std::endl;
-                    }
-                    //Plaquettes for loop
-                    //std::cout << LabelP[plaquette][i][j][k] << std::endl;
+                std::random_shuffle ( myvector.begin(), myvector.end() ); 
+                for (std::vector<int>::iterator it=myvector.begin(); it!=myvector.end(); ++it){
+                    revise_cube(*it,i,j,k); //We revise the plaquettes in a random order
                 }
-
-            //Volume for loop
             }
         }
     }
 }
 
-
 inline void string_density(){
-    std::unordered_set<int> PLabelsSet(PlaqLabels,PlaqLabels + PlaqLabel);
-    strdensity = 1.0*PLabelsSet.size()/(L*L*L);
-    //std::cout << PLabelsSet.size() << std::endl;
-    //std::cout << strdensity << std::endl;
-    /*for (int i = 0; i<3*L*L*L; i++){
-        if (i >= PlaqLabel){
-            std::cout << "Debe ser cero " << PlaqLabels[i] << std::endl;
-        }
-        else{
-            std::cout <<  PlaqLabels[i] << std::endl;
+    std::set<int> PLabelsSet;
+     for(int i = 0; i<L; i++){
+        for(int j =0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                for (int plaquette = 0; plaquette<3; plaquette++){
+                    if (LabelsP[plaquette][i][j][k] > 0){
+                        PLabelsSet.insert(findPlaq(LabelsP[plaquette][i][j][k]));
+                    }
+                    else if (LabelsP[plaquette][i][j][k] = 0){
+                        strdensity += 1/(1.0*L*L*L); //Strings that belong to only one plaquette are marked as 0
+                    }   
+                }
+            }
         }
     }
-    */   
+    strdensity += 1.0*PLabelsSet.size()/(1.0*L*L*L);
 }
 
 
@@ -420,7 +490,7 @@ inline void reset(){
                 VortexP[0][i][j][k] = 0; VortexP[1][i][j][k] = 0; VortexP[2][i][j][k] = 0;
                 MarkerPIn[0][i][j][k] = 0; MarkerPIn[1][i][j][k] = 0; MarkerPIn[2][i][j][k] = 0;
                 MarkerPOut[0][i][j][k] = 0; MarkerPOut[1][i][j][k] = 0; MarkerPOut[2][i][j][k] = 0;
-                LabelP[0][i][j][k] = 0; LabelP[1][i][j][k] = 0; LabelP[2][i][j][k] = 0;
+                LabelsP[0][i][j][k] = 0; LabelsP[1][i][j][k] = 0; LabelsP[2][i][j][k] = 0;
             } 
         }
     }
@@ -431,7 +501,7 @@ inline void reset(){
     for(int i = 0; i<3*L*L*L; i++){
         PlaqLabels[i] = 0;
     }
-    PlaqLabel = 0;
+    PlaqLabel = 1;
 }    
 
 void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
@@ -471,7 +541,7 @@ void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
 
 //-----------------------------------------//
 int main(){    
-srand(time(0));
+    srand(time(0));
     int Ntherm, Nmeas, Nsteps, Nbeta;
     double beta_min, beta_max; 
     //---Input data---//
