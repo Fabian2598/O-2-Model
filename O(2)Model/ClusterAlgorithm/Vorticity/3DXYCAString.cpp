@@ -18,7 +18,7 @@ int label = 0;
 double phi; //Spin angle
 int PlaqLabel=1;
 
-constexpr int L = 8;
+constexpr int L = 16;
 constexpr  int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 int PlaqLabels[maxsize*3]; //Plaquette labels
@@ -73,7 +73,7 @@ inline void angle(double x, double y){
 }
 
 inline void Vorticity(){
-    //Vorticity of a plaquette:1/(2pi) * ( delta(i,i+x) + delta(i+x,i+x+y) + delta(i+x+y, i+y) + delta(i+y, i)
+    //Vorticity of a plaquette: 1/(2pi) * ( delta(i,i+x) + delta(i+x,i+x+y) + delta(i+x+y, i+y) + delta(i+y, i)
     //delta(i,j) = theta(j) - theta(i) )
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
@@ -87,15 +87,15 @@ inline void Vorticity(){
                 angle(LatticeX[modulo(i-1,L)][j][modulo(k-1,L)], LatticeY[modulo(i-1,L)][j][modulo(k-1,L)]); double theta_izy = phi;
                 angle(LatticeX[i][modulo(j+1,L)][modulo(k-1,L)], LatticeY[i][modulo(j+1,L)][modulo(k-1,L)]); double theta_ixz = phi;
 
-                //Plaquette 1
-                double q = 1/(2*pi) * ( correction(fmodulo(theta_ix-theta_i,2*pi)) + 
-                correction(fmodulo(theta_ixy-theta_ix,2*pi)) + 
-                correction(fmodulo(theta_iy-theta_ixy,2*pi)) +
-                correction(fmodulo(theta_i-theta_iy,2*pi)) );
+                //WE GO AROUND THE PLAQUETTES IN CLOCWKISE DIRECTION//
+                //Plaquette 1 
+                double q = 1/(2*pi) * ( correction(fmodulo(-theta_ix+theta_i,2*pi)) + 
+                correction(fmodulo(-theta_ixy+theta_ix,2*pi)) + 
+                correction(fmodulo(-theta_iy+theta_ixy,2*pi)) +
+                correction(fmodulo(-theta_i+theta_iy,2*pi)) );
                 if ( absVal(q-1) <= 1e-6) {Vort += 1; VortexP[0][i][j][k] = 1;}
                 else if ( absVal(q+1) <= 1e-6){Antvort += 1; VortexP[0][i][j][k] = -1;}
                 
-
                 //Plaquette 2
                 q = 1/(2*pi) * ( correction(fmodulo(theta_iz-theta_i,2*pi)) + 
                 correction(fmodulo(theta_izy-theta_iz,2*pi)) + 
@@ -257,8 +257,12 @@ inline void revise_cube(int plaquette, int i, int j, int k){
         //inew jnew and knew are the coordinates of the new cube
         //i,j,k are the coordinates of the current cube
         //Coordinates of the new plaquette in LabelsP notation
-        if (pfin < 3){pnew = pfin; ifin=i; jfin=j; kfin=k;}
-        else{pnew = pini; ifin=inew; jfin=jnew; kfin=knew;}
+        if (pfin < 3){
+            pnew = pfin; ifin=i; jfin=j; kfin=k; 
+            }
+        else{
+            pnew = pini; ifin=inew; jfin=jnew; kfin=knew;
+        }
         
         pLabels[0] = findPlaq(LabelsP[plaquette_ini][i_ini][j_ini][k_ini]);
         pLabels[1] = findPlaq(LabelsP[pnew][ifin][jfin][kfin]);
@@ -283,7 +287,6 @@ inline void revise_cube(int plaquette, int i, int j, int k){
     } 
 
     
-    
 }
 
 inline void make_strings(){
@@ -298,6 +301,19 @@ inline void make_strings(){
             }
         }
     }
+
+    for(int i = 0; i<L; i++){
+        for(int j =0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                for (int plqt = 0; plqt<3; plqt++){
+                    if (LabelsP[plqt][i][j][k]>0){
+                        LabelsP[plqt][i][j][k] = findPlaq(LabelsP[plqt][i][j][k]); //Relabel the plaquettes
+                    }         
+                }
+            }
+        }
+    }
+
 }
 
 inline void string_density(){
@@ -307,10 +323,10 @@ inline void string_density(){
             for(int k = 0; k<L; k++){
                 for (int plaquette = 0; plaquette<3; plaquette++){
                     if (LabelsP[plaquette][i][j][k] > 0){
-                        PLabelsSet.insert(findPlaq(LabelsP[plaquette][i][j][k]));
+                        PLabelsSet.insert(LabelsP[plaquette][i][j][k]);
                     }
-                    else if (LabelsP[plaquette][i][j][k] = 0){
-                        strdensity += 1/(1.0*L*L*L); //Strings that belong to only one plaquette are marked as 0
+                    else if (LabelsP[plaquette][i][j][k] == 0){
+                        strdensity += 1.0/(1.0*L*L*L); //Strings that belong to only one plaquette are marked as 0
                     }   
                 }
             }
