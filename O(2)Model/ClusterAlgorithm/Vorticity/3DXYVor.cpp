@@ -16,8 +16,8 @@ double p;//Acceptance ratio
 int label = 0;
 double phi; //Spin angle
 
-constexpr int L = 16;
-constexpr  int maxsize = L*L*L;
+constexpr int L = 8;
+constexpr int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 
 //We store the spin components.
@@ -67,12 +67,13 @@ inline void Vorticity(){
                 angle(LatticeX[i][j][modulo(k-1,L)], LatticeY[i][j][modulo(k-1,L)]); double theta_iz = phi;
                 angle(LatticeX[modulo(i-1,L)][j][modulo(k-1,L)], LatticeY[modulo(i-1,L)][j][modulo(k-1,L)]); double theta_izy = phi;
                 angle(LatticeX[i][modulo(j+1,L)][modulo(k-1,L)], LatticeY[i][modulo(j+1,L)][modulo(k-1,L)]); double theta_ixz = phi;
-
-                //Plaquette 1
-                double q = 1/(2*pi) * ( correction(fmodulo(theta_ix-theta_i,2*pi)) + 
-                correction(fmodulo(theta_ixy-theta_ix,2*pi)) + 
-                correction(fmodulo(theta_iy-theta_ixy,2*pi)) +
-                correction(fmodulo(theta_i-theta_iy,2*pi)) );
+                
+                //WE GO AROUND THE PLAQUETTES IN CLOCWKISE DIRECTION//
+                //Plaquette 1 
+                double q = 1/(2*pi) * ( correction(fmodulo(-theta_ix+theta_i,2*pi)) + 
+                correction(fmodulo(-theta_ixy+theta_ix,2*pi)) + 
+                correction(fmodulo(-theta_iy+theta_ixy,2*pi)) +
+                correction(fmodulo(-theta_i+theta_iy,2*pi)) );
                 if ( absVal(q-1) <= 1e-6) {Vort += 1;}
                 else if ( absVal(q+1) <= 1e-6){Antvort += 1;}
 
@@ -324,6 +325,7 @@ srand(time(0));
     int Ntherm, Nmeas, Nsteps, Nbeta;
     double beta_min, beta_max; 
     //---Input data---//
+    std::cout << "L = " << L << std::endl; 
     std::cout << "beta min: "; 
     std::cin >> beta_min;
     std::cout << "beta max: ";
