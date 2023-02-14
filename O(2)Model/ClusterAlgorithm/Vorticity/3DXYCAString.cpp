@@ -11,14 +11,14 @@
 
 
 double pi = 3.14159265359;
-double Vort=0, Antvort=0, strdensity=0;
-double dVort, dAntvort, dstrdensity;
+double Vort=0, Antvort=0, strdensity=0, string_length=0;
+double dVort, dAntvort, dstrdensity, dstring_length;
 double p;//Acceptance ratio
 int label = 0;
 double phi; //Spin angle
 int PlaqLabel=1;
 
-constexpr int L = 16;
+constexpr int L = 8;
 constexpr  int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 int PlaqLabels[maxsize*3]; //Plaquette labels
@@ -87,7 +87,7 @@ inline void Vorticity(){
                 angle(LatticeX[modulo(i-1,L)][j][modulo(k-1,L)], LatticeY[modulo(i-1,L)][j][modulo(k-1,L)]); double theta_izy = phi;
                 angle(LatticeX[i][modulo(j+1,L)][modulo(k-1,L)], LatticeY[i][modulo(j+1,L)][modulo(k-1,L)]); double theta_ixz = phi;
 
-                //WE GO AROUND THE PLAQUETTES IN CLOCWKISE DIRECTION//
+                //WE GO AROUND THE PLAQUETTES IN CLOCKWISE DIRECTION//
                 //Plaquette 1 
                 double q = 1/(2*pi) * ( correction(fmodulo(-theta_ix+theta_i,2*pi)) + 
                 correction(fmodulo(-theta_ixy+theta_ix,2*pi)) + 
@@ -318,23 +318,41 @@ inline void make_strings(){
 
 inline void string_density(){
     std::set<int> PLabelsSet;
+    std::vector<int> Lengths(PlaqLabel,0);
+    Lengths[0] = 1;
+    int nstr = 0;
      for(int i = 0; i<L; i++){
         for(int j =0; j<L; j++){
             for(int k = 0; k<L; k++){
                 for (int plaquette = 0; plaquette<3; plaquette++){
                     if (LabelsP[plaquette][i][j][k] > 0){
                         PLabelsSet.insert(LabelsP[plaquette][i][j][k]);
+                        Lengths[LabelsP[plaquette][i][j][k]] += 1;
+
                     }
                     else if (LabelsP[plaquette][i][j][k] == 0){
                         strdensity += 1.0/(1.0*L*L*L); //Strings that belong to only one plaquette are marked as 0
-                    }   
+                        string_length += 1; 
+                        nstr += 1;
+                    } 
                 }
             }
         }
     }
-    strdensity += 1.0*PLabelsSet.size()/(1.0*L*L*L);
+    nstr += PLabelsSet.size();
+    strdensity += 1.0*nstr/(1.0*L*L*L);
+    for(int i = 0; i<PlaqLabel; i++){
+        if (Lengths[i]>0){
+            string_length += 1.0*Lengths[i];
+        }
+    }
+    if (nstr == 0){
+        string_length = 0;
+    }
+    else{
+        string_length = 1.0*string_length/(nstr*1.0);
+    }
 }
-
 
 inline void initialize_lattice(){
     for(int i = 0; i<L; i++){
@@ -521,7 +539,7 @@ inline void reset(){
 }    
 
 void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
-    std::vector<double> SDensity(Nmeas), VORT(Nmeas), AVORT(Nmeas);
+    std::vector<double> SDensity(Nmeas), VORT(Nmeas), AVORT(Nmeas), StringLength(Nmeas);
     //Thermalization//
     initialize_lattice();
     for(int i = 0; i<Ntherm; i++){
@@ -538,10 +556,11 @@ void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
         Vorticity(); 
         make_strings();
         string_density();
+        StringLength[i] = string_length;  //Average length of the strings
         SDensity[i] = strdensity;
         VORT[i] = Vort;
         AVORT[i] = Antvort;
-        Vort = 0; Antvort = 0; strdensity = 0;
+        Vort = 0; Antvort = 0; strdensity = 0; string_length = 0;
         reset();
         for(int j = 0; j<Nsteps; j++){
             Bonds(beta);
@@ -550,6 +569,7 @@ void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
             reset(); 
         }
     }
+    string_length = mean(StringLength); dstring_length = Jackknife_error(StringLength,20);
     strdensity = mean(SDensity); dstrdensity = Jackknife_error(SDensity,20);
     Vort = mean(VORT)/(L*L*L); dVort = Jackknife_error(VORT,20)/(L*L*L);
     Antvort = mean(AVORT)/(L*L*L); dAntvort = Jackknife_error(AVORT,20)/(L*L*L);
@@ -600,14 +620,17 @@ int main(){
         Datfile << Data_str;
         sprintf(Data_str, "%-30.17g%-30.17g\n", strdensity, dstrdensity);
         Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", string_length, dstring_length);
+        Datfile << Data_str;
         sprintf(Data_str, "%-30.17g%-30.17g\n", Vort, dVort);
         Datfile << Data_str;
         sprintf(Data_str, "%-30.17g%-30.17g\n", Antvort, dAntvort);
         Datfile << Data_str;
         std::cout << "String density = " << strdensity << " +- " << dstrdensity << std::endl;
+        std::cout << "Average string length = " << string_length << " +- " << dstring_length << std::endl;
         std::cout << "V = " << Vort << " +- " << dVort << std::endl;
         std::cout << "A = " << Antvort << " +- " << dAntvort << std::endl;
-        Vort = 0; dVort=0; Antvort = 0; dAntvort = 0; strdensity = 0; dstrdensity=0;
+        Vort = 0; dVort=0; Antvort = 0; dAntvort = 0; strdensity = 0; dstrdensity=0; string_length=0; dstring_length=0;
         //----Computing time----//
         clock_t end = clock();
         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
