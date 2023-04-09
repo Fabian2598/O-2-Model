@@ -21,15 +21,15 @@ constexpr int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 
 //We store the spin components.
-std::vector<std::vector<std::vector<double>>> LatticeX(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); 
-std::vector<std::vector<std::vector<double>>> LatticeY(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); 
-std::vector<std::vector<std::vector<double>>> LatticeRX(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); 
-std::vector<std::vector<std::vector<double>>> LatticeRY(L, std::vector<std::vector<double>> (L, std::vector<double>(L,0))); 
+double LatticeX[L][L][L]; 
+double LatticeY[L][L][L]; 
+double LatticeRX[L][L][L]; 
+double LatticeRY[L][L][L]; 
 
-std::vector<std::vector<std::vector<int>>> xBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-std::vector<std::vector<std::vector<int>>> yBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-std::vector<std::vector<std::vector<int>>> zBonds(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
-std::vector<std::vector<std::vector<int>>> Labels(L, std::vector<std::vector<int> > (L, std::vector<int>(L,0)));
+double xBonds[L][L][L]; 
+double yBonds[L][L][L]; 
+double zBonds[L][L][L]; 
+double Labels[L][L][L]; 
 
 inline double correction(double a){    
     if (a>pi){

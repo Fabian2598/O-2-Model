@@ -10,12 +10,13 @@
 
 
 double pi = 3.14159265359;
-double E = 0, En2 = 0, M = 0, M2=0, chi = 0, Cv = 0;
-double dchi, dM, dM2, dCv, dE, dE2;
-double p; //Acceptance ratio.
+double Vort=0, Antvort=0;
+double dVort, dAntvort;
+double p;//Acceptance ratio
 int label = 0;
+double phi, beta; //Spin angle
 
-constexpr int L = 12;
+constexpr int L = 8;
 constexpr  int maxsize = L*L*L;
 int CLabels[maxsize]; //Cluster labels.
 
@@ -30,49 +31,87 @@ double yBonds[L][L][L];
 double zBonds[L][L][L]; 
 double Labels[L][L][L]; 
 
-
-inline void initialize_lattice(){
-    for(int i = 0; i<L; i++){
-        for(int j =0; j<L; j++){
-            for(int k = 0; k<L; k++){
-                double r_init = rand_range(0,2*pi);
-                LatticeX[i][j][k] = cos(r_init);
-                LatticeY[i][j][k] = sin(r_init);
-            }
-        }
-    }
-}
-
-inline void EnergyCA(){
-    for (int i = 0; i<L; i++){
-        for (int j = 0; j<L; j++){
-            for(int k = 0; k<L; k++ ){
-                E += -LatticeX[i][j][k]*LatticeX[i][modulo(j+1,L)][k] - LatticeY[i][j][k]*LatticeY[i][modulo(j+1,L)][k]
-                 -LatticeX[i][j][k]*LatticeX[modulo(i+1,L)][j][k] - LatticeY[i][j][k]*LatticeY[modulo(i+1,L)][j][k]
-                 -LatticeX[i][j][k]*LatticeX[i][j][modulo(k+1,L)] - LatticeY[i][j][k]*LatticeY[i][j][modulo(k+1,L)];
-            }        
-        }
-    }
-}
-
-inline void Magnetization(){
-    double sx=0, sy=0;
+inline void random_init(){
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            for(int k =0; k<L; k++){
-                sx += LatticeX[i][j][k];
-                sy += LatticeY[i][j][k];
-            }
+            for(int k = 0; k<L; k++){
+                    double r = rand_range(0, 2*pi);
+                    LatticeX[i][j][k] = cos(r);
+                    LatticeY[i][j][k] = sin(r);
+            }   
         }
     }
-    M = sqrt(sx*sx + sy*sy);
 }
 
+inline double correction(double a){    
+    if (a>pi){
+        return (-2*pi + a);
+    }
+    return a;
+}
+
+inline void angle(double x, double y){
+    double norm = sqrt(x*x+ y*y);
+    //Quadrants I and II//
+    if (asin(y/norm) > 1e-10){
+        phi = acos(x/norm);
+    }
+    //Quadrants III and IV
+    else if (asin(y/norm) < -1e-10){
+        phi = 2*pi - acos(x/norm);
+    }
+    else{
+        phi = 0;
+    }
+    //This returns an angle between 0 and 2*pi
+}
+
+inline void Vorticity(){
+    //Vorticity of a plaquette:1/(2pi) * ( delta(i,i+x) + delta(i+x,i+x+y) + delta(i+x+y, i+y) + delta(i+y, i)
+    //delta(i,j) = theta(j) - theta(i) )
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            for (int k = 0; k<L; k++){
+                angle(LatticeX[i][j][k], LatticeY[i][j][k]); double theta_i = phi;
+                angle(LatticeX[i][modulo(j+1,L)][k], LatticeY[i][modulo(j+1,L)][k]); double theta_ix = phi;
+                angle(LatticeX[modulo(i-1,L)][modulo(j+1,L)][k], LatticeY[modulo(i-1,L)][modulo(j+1,L)][k]); double theta_ixy = phi;
+                angle(LatticeX[modulo(i-1,L)][j][k], LatticeY[modulo(i-1,L)][j][k]); double theta_iy = phi;
+                angle(LatticeX[i][j][modulo(k-1,L)], LatticeY[i][j][modulo(k-1,L)]); double theta_iz = phi;
+                angle(LatticeX[modulo(i-1,L)][j][modulo(k-1,L)], LatticeY[modulo(i-1,L)][j][modulo(k-1,L)]); double theta_izy = phi;
+                angle(LatticeX[i][modulo(j+1,L)][modulo(k-1,L)], LatticeY[i][modulo(j+1,L)][modulo(k-1,L)]); double theta_ixz = phi;
+
+                //WE GO AROUND THE PLAQUETTES IN CLOCWKISE DIRECTION//
+                //Plaquette 1 
+                double q = 1/(2*pi) * ( correction(fmodulo(-theta_ix+theta_i,2*pi)) + 
+                correction(fmodulo(-theta_ixy+theta_ix,2*pi)) + 
+                correction(fmodulo(-theta_iy+theta_ixy,2*pi)) +
+                correction(fmodulo(-theta_i+theta_iy,2*pi)) );
+                if ( absVal(q-1) <= 1e-6) {Vort += 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1;}
+
+                //Plaquette 2
+                q = 1/(2*pi) * ( correction(fmodulo(theta_iz-theta_i,2*pi)) + 
+                correction(fmodulo(theta_izy-theta_iz,2*pi)) + 
+                correction(fmodulo(theta_iy-theta_izy,2*pi)) +
+                correction(fmodulo(theta_i-theta_iy,2*pi)) );
+                if ( absVal(q-1) <= 1e-6) {Vort += 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1;}
+
+                //Plaquette 3
+                q = 1/(2*pi) * ( correction(fmodulo(theta_ix-theta_i,2*pi)) + 
+                correction(fmodulo(theta_ixz-theta_ix,2*pi)) + 
+                correction(fmodulo(theta_iz-theta_ixz,2*pi)) +
+                correction(fmodulo(theta_i-theta_iz,2*pi)) );
+                if ( absVal(q-1) <= 1e-6) {Vort += 1;}
+                else if ( absVal(q+1) <= 1e-6){Antvort += 1;}
+            }
+        }
+    }  
+}
+
+
 //-----Function that generates bonds between neighbouring sites-----//
-inline void Bonds(double beta){
-    // modifies xBonds (bonds in the x direction)
-    //          yBonds (bonds in the y direction)
-    //          SpinLatticeR (Lattice with the angles of the reflected spins)
+inline void Bonds(){
     double rphi = rand_range(0.0, 2*pi); //Angle of the r vector
     double rx = cos(rphi), ry = sin(rphi); //vector associated to the rphi angle
     for(int i = 0; i<L; i++){
@@ -235,108 +274,84 @@ inline void reset(){
     label = 0;
 }    
 
-void CA_XY3d(double beta, int Ntherm, int Nmeas, int Nsteps){
-    std::vector<double> Energy(Nmeas), Energy2(Nmeas), Magn(Nmeas), Magn2(Nmeas);
-    //Thermalization//
-    initialize_lattice();
-    for(int i = 0; i<Ntherm; i++){
-        Bonds(beta); //Computes the bonds and the reflected lattice.
-        HoshenKopelman(); //Identifies the clusters.
-        flip(); //Flips the spins with probability 1/2.
-        reset();//Resets bonds and labels.
-    }
-    for(int i = 0; i<Nmeas; i++){
-        Bonds(beta); //Computes the bonds and the reflected lattice.
-        HoshenKopelman(); //Identifies the clusters.
-        flip(); //Flips the spins with probability 1/2.
-        reset();//Resets bonds and labels.
-        
-        EnergyCA(); //We compute the energy
-        Magnetization(); //Magnetization
-        Energy[i] = E; 
-        Energy2[i] = E*E;
-        Magn[i] = M;
-        Magn2[i] = M*M;
-        E = 0; M = 0;
-        for(int j = 0; j<Nsteps; j++){
-            Bonds(beta); //Computes the bonds and the reflected lattice.
-            HoshenKopelman(); //Identifies the clusters.
-            flip(); //Flips the spins with probability 1/2.
-            reset(); //Resets bonds and labels.
-        }
-    }
-    E = mean(Energy); dE = Jackknife_error(Energy, 20);
-    En2 = mean(Energy2); dE2 = Jackknife_error(Energy2, 20);
-    Cv = beta * beta * (En2-E*E) /(L*L*L); dCv = absVal(beta * beta * (dE2 + 2*E*dE)/(L*L*L));
-    M = mean(Magn); dM = Jackknife_error(Magn, 20);
-    M2 = mean(Magn2); dM2 = Jackknife_error(Magn2, 20);
-    chi = (M2-M*M) /(L*L*L); dchi = absVal((dM2 + 2*M*dM)/(L*L*L));
+int T_to_String(double Tf){
+    int TF = (Tf - (int) Tf)*1000;
+    if (Tf>=1){TF = TF + (int) Tf*1000;}
+    return TF;
 }
+
+inline void Cluster_XY3d(int tauQ, int Ntherm, int Nmeas, double Ti,double Tf){
+    // TauQ --> inverse cooling rating
+    // Ntherm --> Thermalization steps
+
+    //double 2*Tc = 4.40334654...; 
+    int tmax, MedSize;
+    if (Tf == 0){tmax = 2*tauQ - 1; MedSize = 2*tauQ;}
+    else {tmax = 2*tauQ; MedSize = 2*tauQ + 1;}
+    std::vector<std::vector<double>> Mediciones(MedSize, std::vector<double>(Nmeas,0));
+    for(int k = 0; k<Nmeas; k++){
+        beta = 1/Ti;
+        //Random initial condition//
+        random_init();
+        //Thermalization//
+        for(int i = 0; i<Ntherm; i++){
+            Bonds(); 
+            HoshenKopelman(); 
+            flip(); 
+            reset();
+        }
+        //Cooling// 
+        for(int i = 0; i<=tmax; i++){
+            beta = 1.0/ ( (Tf-Ti)/(2.0*tauQ) * i + Ti  );
+            Bonds(); 
+            HoshenKopelman(); 
+            flip(); 
+            reset();
+
+            Vorticity(); 
+            Mediciones[i][k] = Vort;
+            Vort=0; Antvort = 0;
+        }     
+    }
+    char NameData[50], Data_str[100];
+    sprintf(NameData, "3DXY_L%d_tdep_tauQ%d_Ti%d_Tf%d.txt", L, tauQ, T_to_String(Ti), T_to_String(Tf));
+    std::ofstream Datfile;
+    Datfile.open(NameData);
+    for(int i=0;i<=tmax;i++ ){
+        Vort = mean(Mediciones[i])/(L*L*L); dVort = Jackknife_error(Mediciones[i],20)/(L*L*L);
+        sprintf(Data_str, "%-30d%-30.17g%-30.17g\n",i, Vort, dVort);
+        Datfile << Data_str;
+    }
+    Datfile.close();
+}
+
+
 
 //-----------------------------------------//
 int main(){    
-srand(time(0));
-    int Ntherm, Nmeas, Nsteps, Nbeta;
-    double beta_min, beta_max; 
+    srand(time(0));
+    int Ntherm, Nmeas, tauQ_min;
+    double Ti, Tf; 
     //---Input data---//
-    std::cout << "L " << L << std::endl;
-    std::cout << "beta min: "; 
-    std::cin >> beta_min;
-    std::cout << "beta max: ";
-    std::cin >> beta_max;
-    std::cout << "Number of betas: ";
-    std::cin >> Nbeta;
+    std::cout << "-----Cluster algorithm 3DXY-----" << std::endl;
+    std::cout << "L = " << L << std::endl;
+    std::cout << "tauQ: "; 
+    std::cin >> tauQ_min;
+    std::cout << "Ti: ";
+    std::cin >> Ti;
+    std::cout << "Tf: ";
+    std::cin >> Tf;
     std::cout << "Thermalization: ";
     std::cin >> Ntherm;
     std::cout << "Measurements: ";
     std::cin >> Nmeas;
-    std::cout << "Step (sweeps between measurements): ";
-    std::cin >> Nsteps;
     std::cout << " " << std::endl;
-    std::vector<double> Betas(Nbeta);
-    if (Nbeta == 1){ 
-        Betas = {beta_min}; 
-    }
-    else{ 
-        Betas = linspace(beta_min,beta_max, Nbeta);
-    }
-    char NameData[50], Data_str[100];
-    for (int i = 0; i < Nbeta; i++) {
-        int A = Betas[i];
-        int beta= (Betas[i] - A) * 10000;
-        if (Betas[i] < 1){sprintf(NameData, "3DXY_L%d_Meas%d_b0%d.dat", L, Nmeas,beta);}
-        else{beta = beta + (int) Betas[i] * 10000; sprintf(NameData, "3DXY_L%d_Meas%d_b%d.dat", L, Nmeas,beta);}
-        
-        std::ofstream Datfile;
-        Datfile.open(NameData);
-        clock_t begin = clock();
-        std::cout << "beta = " << Betas[i] << "  T = " << 1/Betas[i] << std::endl;
-        CA_XY3d(Betas[i], Ntherm, Nmeas, Nsteps);
-        sprintf(Data_str,"%-30d%-30d%-30d%-30d%-30.17g\n",Ntherm,Nmeas,Nsteps,L,Betas[i]);
-        Datfile << Data_str;
-        sprintf(Data_str, "%-30.17g%-30.17g\n", E, dE);
-        Datfile << Data_str;
-        sprintf(Data_str, "%-30.17g%-30.17g\n", Cv, dCv);
-        Datfile << Data_str;
-        sprintf(Data_str, "%-30.17g%-30.17g\n", M, dM);
-        Datfile << Data_str;
-        sprintf(Data_str, "%-30.17g%-30.17g\n", chi, dchi);
-        Datfile << Data_str;
-        
-        std::cout << "E = " << E << " +- " << dE << std::endl;
-        std::cout << "Cv = " << Cv << " +- " << dCv << std::endl;
-        std::cout << "M = " << M << " +- " << dM << std::endl;
-        std::cout << "Chi = " << chi << " +- " << dchi << std::endl; 
-        E = 0; dE= 0; M = 0; dM = 0;
-        //----Computing time----//
-        clock_t end = clock();
-        double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        sprintf(Data_str, "%-30.17g", elapsed_secs);
-        Datfile << Data_str; 
-        std::cout << "Time = " << elapsed_secs << " s" << std::endl;
-        std::cout << "------------------------------" << std::endl;
-        Datfile.close();
-    }
+
+    clock_t begin = clock();
+    Cluster_XY3d(tauQ_min, Ntherm, Nmeas, Ti,Tf); 
+    clock_t end = clock();
+    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC; 
+    std::cout << "Time = " << elapsed_secs << " s" << std::endl;
     
-    return 0;       
+    return 0;
 }
