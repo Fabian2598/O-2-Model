@@ -18,11 +18,31 @@ constexpr int L = 8;
 constexpr  int maxsize = L*L*L;
 double SpinLattice[L][L][L];
 
+//Arrays needed for cluster algorithm//
+int CLabels[maxsize]; 
+double phi = 0;
+double p;//Acceptance ratio
+int label = 0;
+
+double LatticeX[L][L][L]; 
+double LatticeY[L][L][L]; 
+double LatticeRX[L][L][L]; 
+double LatticeRY[L][L][L]; 
+
+double xBonds[L][L][L]; 
+double yBonds[L][L][L]; 
+double zBonds[L][L][L]; 
+double Labels[L][L][L]; 
+//----------------------------------//
+
 inline void random_init(){
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
             for(int k = 0; k<L; k++){
-                    SpinLattice[i][j][k] = rand_range(0.0, 2*pi);
+                    //SpinLattice[i][j][k] = rand_range(0.0, 2*pi);
+                    double r = rand_range(0.0, 2*pi);
+                    LatticeX[i][j][k] = cos(r);
+                    LatticeY[i][j][k] = sin(r);
             }   
         }
     }
@@ -34,6 +54,190 @@ inline double correction(double a){
     }
     return a;
 }
+
+//--------------Cluster algorithm--------------//
+inline void angle(double x, double y){
+    double norm = sqrt(x*x+ y*y);
+    //Quadrants I and II//
+    if (asin(y/norm) > 1e-10){
+        phi = acos(x/norm);
+    }
+    //Quadrants III and IV
+    else if (asin(y/norm) < -1e-10){
+        phi = 2*pi - acos(x/norm);
+    }
+    else{
+        phi = 0;
+    }
+    //This returns an angle between 0 and 2*pi
+}
+
+
+//-----Function that generates bonds between neighbouring sites-----//
+inline void Bonds(double beta){
+    double rphi = rand_range(0.0, 2*pi); //Angle of the r vector
+    double rx = cos(rphi), ry = sin(rphi); //vector associated to the rphi angle
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                double Sdot = LatticeX[i][j][k]*rx + LatticeY[i][j][k]*ry; //Dot product of S with r
+                LatticeRX[i][j][k] = LatticeX[i][j][k] - 2*rx*Sdot; //Reflected spin.
+                LatticeRY[i][j][k] = LatticeY[i][j][k] - 2*ry*Sdot;
+            
+                //---Creating bond with the right neigbour---//
+                double SNdot = rx*LatticeX[i][modulo(j+1,L)][k] + ry*LatticeY[i][modulo(j+1,L)][k]; //Dot product of the right neighbour with r
+                p = 0;
+                if (SNdot*Sdot >=0){ p = 1-exp(-2*beta*SNdot*Sdot);}
+                double R = ((double) rand() / (RAND_MAX));
+                if (R<p){xBonds[i][j][k] = 1;}
+
+                //---Creating bond with the lower neigbour---//
+                SNdot = rx*LatticeX[modulo(i+1,L)][j][k] + ry*LatticeY[modulo(i+1,L)][j][k];
+                p = 0;
+                if (SNdot*Sdot >=0){p = 1-exp(-2*beta*SNdot*Sdot);}
+                R = ((double) rand() / (RAND_MAX));
+                if (R<p){yBonds[i][j][k] = 1;}
+                //---Creating bond with the front neigbour---//
+                SNdot = rx*LatticeX[i][j][modulo(k+1,L)] + ry*LatticeY[i][j][modulo(k+1,L)];
+                p = 0;
+                if (SNdot*Sdot >=0){p = 1-exp(-2*beta*SNdot*Sdot);}
+                R = ((double) rand() / (RAND_MAX));
+                if (R<p){zBonds[i][j][k] = 1;}
+            }
+        }
+    }
+}
+   
+inline int find(int x){
+    int y = x;
+    while (CLabels[y] != y){
+        y = CLabels[y];
+    }
+    while (CLabels[x] != x){
+        int z = CLabels[x];
+        CLabels[x] = y;
+        x = z;
+    }
+    return y;
+}
+
+//-----Hoshen-Kopelman algorithm-----//
+inline void HoshenKopelman(){
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                std::vector<int> LBond(6), UBond(6), TBond(6), pLabels;
+                int bonds = 0, pLabel;
+                if (i>0 && yBonds[i-1][j][k] == 1){
+                    UBond[bonds] = i - 1;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+                if (i == L-1 && yBonds[i][j][k] == 1){
+                    UBond[bonds] = 0;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+                if (j >0 && xBonds[i][j-1][k] == 1){
+                    UBond[bonds] = i;
+                    LBond[bonds] = j-1;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+                if (j == L-1 && xBonds[i][j][k] == 1){
+                    UBond[bonds] = i;
+                    LBond[bonds] == 0;
+                    TBond[bonds] = k;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+                if (k>0 && zBonds[i][j][k-1] == 1){
+                    UBond[bonds] = i;
+                    LBond[bonds] = j;
+                    TBond[bonds] = k-1;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+                if (k == L-1 && zBonds[i][j][k] == 1){
+                    UBond[bonds] = i;
+                    LBond[bonds] = j;
+                    TBond[bonds] = 0;
+                    bonds += 1;
+                    pLabel = find(Labels[UBond[bonds-1]][LBond[bonds-1]][TBond[bonds-1]]);
+                    pLabels.push_back(pLabel);
+                }
+
+                if (bonds == 0){
+                    Labels[i][j][k] = label;
+                    CLabels[label] = label;
+                    label += 1;
+                }
+                else{
+                    int minLabel = *std::min_element(pLabels.begin(), pLabels.end());
+                    Labels[i][j][k] = minLabel;
+                    for (int b = 0; b<bonds; b++){
+                        pLabel = pLabels[b];
+                        CLabels[pLabel] = minLabel;
+                        Labels[UBond[b]][LBond[b]][TBond[b]] = minLabel;
+                    }
+                }
+            }
+        }
+    }
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                Labels[i][j][k] = find(Labels[i][j][k]);
+            }
+        }
+    }
+            
+}
+
+inline void flip(){
+    std::vector<double> probs;
+    for(int i = 0; i<label; i++){
+        double R = ((double) rand() / (RAND_MAX));
+        probs.push_back(R);
+    }
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            for(int k = 0; k<L; k++){                   
+                if (probs[Labels[i][j][k]] < 0.5){
+                    LatticeX[i][j][k] = LatticeRX[i][j][k];
+                    LatticeY[i][j][k] = LatticeRY[i][j][k];
+                }
+            }
+        }
+    }
+
+}
+
+inline void reset(){
+    for(int i = 0; i<L; i++){
+        for(int j=0; j<L; j++){
+            for(int k = 0; k<L; k++){
+                xBonds[i][j][k] = 0; yBonds[i][j][k] = 0; zBonds[i][j][k] = 0; Labels[i][j][k] = 0; LatticeRX[i][j][k] = 0; LatticeRY[i][j][k] = 0;
+            } 
+        }
+    }
+    for(int i = 0; i<label; i++){
+        CLabels[i] = 0;
+    }
+    label = 0;
+}   
+
+//---------------------------------------------//
 
 inline void Vorticity(){
     //Vorticity of a plaquette delta(i,i+x) + delta(i+x,i+x+y) + delta(i+x+y, i+y) + delta(i+y, i)
@@ -118,7 +322,7 @@ inline void g_function(double x){
     g_a = exp(-aVal*G_a);
 }
 
-inline void angle(double x, double y){
+inline void angleHB(double x, double y){
     if (x>1e-6){ tx = atan(y/x); }
     else if(x<-1e-6 && y>1e-6){ tx = pi + atan(y/x); }
     else if(x<-1e-6 && y<-1e-6){ tx = -pi + atan(y/x);}
@@ -141,13 +345,13 @@ inline void HB_sweep(double beta){
                 + sin(SpinLattice[i][modulo(j+1,L)][k]) + sin(SpinLattice[i][modulo(j-1,L)][k]) 
                 + sin(SpinLattice[i][j][modulo(k+1,L)]) + sin(SpinLattice[i][j][modulo(k-1,L)]);
                 aVal = beta*sqrt(Sx*Sx + Sy*Sy);
-                angle(Sx,Sy); //Now we have tx from -pi to pi 
+                angleHB(Sx,Sy); //Now we have tx from -pi to pi 
                 bool boolean = true;
                 while (boolean == true){
                     w1 = rand_range(0.0,1.0); w2 = rand_range(0.0,1.0);
                     g_function(w1);
                     if (w2 <= g_a){
-                        angle( cos(h_a+tx),sin(h_a+tx)  );
+                        angleHB( cos(h_a+tx),sin(h_a+tx)  );
                         SpinLattice[i][j][k] = tx;
                         boolean = false;
                     }
@@ -180,9 +384,23 @@ inline void HB_XY3dV2(int tauQ, int Ntherm, int Nmeas, double Ti,double Tf){
         random_init();
         //Thermalization//
         for(int i = 0; i<Ntherm; i++){
-            HB_sweep(beta);
+            Bonds(beta); 
+            HoshenKopelman(); 
+            flip(); 
+            reset();
         }
-        //Cooling// 
+
+        //We transform the spin components of the cluster algorithm to angles for heatbath//
+        for(int i = 0; i<L; i++){
+            for(int j = 0; j<L; j++){
+                for (int k = 0; k<L; k++){
+                    angle(LatticeX[i][j][k], LatticeY[i][j][k]); SpinLattice[i][j][k] = phi;
+                }
+            }
+        }
+        //--------------------------------------------------------------------------------//
+
+        //Cooling with Heatbath// 
         for(int i = 0; i<=tmax; i++){
             beta = 1.0/ ( (Tf-Ti)/(2.0*tauQ) * i + Ti  );
             HB_sweep(beta);
