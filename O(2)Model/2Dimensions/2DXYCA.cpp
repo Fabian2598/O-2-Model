@@ -12,22 +12,26 @@
 double pi = 3.14159265359;
 double E = 0, En2 = 0, M = 0, M2=0, chi = 0, Cv = 0;
 double dchi, dM, dM2, dCv, dE, dE2;
+double Vort = 0, Antvort = 0;
+double dVort, dAntvort;
 double p, reflected_phi;//Acceptance ratio and reflected angle
 int label = 0;
+double phi;
 
-constexpr int L = 24;
+constexpr int L = 8;
 constexpr  int maxsize = L*L;
 int CLabels[maxsize]; //Cluster labels.
-std::vector<std::vector<double>> LatticeX(L, std::vector<double>(L,0)); 
-std::vector<std::vector<double>> LatticeY(L, std::vector<double>(L,0));
-std::vector<std::vector<double>> LatticeRX(L, std::vector<double>(L,0));
-std::vector<std::vector<double>> LatticeRY(L, std::vector<double>(L,0));
 
-std::vector<std::vector<int>> xBonds(L, std::vector<int>(L,0));
-std::vector<std::vector<int>> yBonds(L, std::vector<int>(L,0));
-std::vector<std::vector<int>> Labels(L, std::vector<int>(L,0)); //Labels of each site.
+//We store the spin components.
+double LatticeX[L][L]; 
+double LatticeY[L][L]; 
+double LatticeRX[L][L]; 
+double LatticeRY[L][L]; 
 
-//-----Computes the energy of a configuration-----//
+double xBonds[L][L]; 
+double yBonds[L][L]; 
+double Labels[L][L];
+
 inline void initialize_lattice(){
     for(int i = 0; i<L; i++){
         for(int j =0; j<L; j++){
@@ -57,6 +61,49 @@ inline void Magnetization(){
     }
     M = sqrt(sx*sx + sy*sy);
 }
+
+inline double correction(double a){    
+    if (a>pi){
+        return (-2*pi + a);
+    }
+    return a;
+}
+
+inline void angle(double x, double y){
+    double norm = sqrt(x*x+ y*y);
+    //Quadrants I and II//
+    if (asin(y/norm) > 1e-10){
+        phi = acos(x/norm);
+    }
+    //Quadrants III and IV
+    else if (asin(y/norm) < -1e-10){
+        phi = 2*pi - acos(x/norm);
+    }
+    else{
+        phi = 0;
+    }
+    //This returns an angle between 0 and 2*pi
+}
+
+inline void Vorticity(){
+    //Vorticity of a plaquette delta(i,i+x) + delta(i+x,i+x+y) + delta(i+x+y, i+y) + delta(i+y, i)
+    //delta(i,j) = theta(j) - theta(i)
+    for(int i = 0; i<L; i++){
+        for(int j = 0; j<L; j++){
+            angle(LatticeX[i][j], LatticeY[i][j]); double theta_i = phi;
+            angle(LatticeX[i][modulo(j+1,L)], LatticeY[i][modulo(j+1,L)]); double theta_ix = phi;
+            angle(LatticeX[modulo(i-1,L)][modulo(j+1,L)], LatticeY[modulo(i-1,L)][modulo(j+1,L)]); double theta_ixy = phi;
+            angle(LatticeX[modulo(i-1,L)][j], LatticeY[modulo(i-1,L)][j]); double theta_iy = phi;
+            double q = 1/(2*pi) * ( correction(fmodulo(theta_ix-theta_i,2*pi)) + 
+            correction(fmodulo(theta_ixy-theta_ix,2*pi)) + 
+            correction(fmodulo(theta_iy-theta_ixy,2*pi)) +
+            correction(fmodulo(theta_i-theta_iy,2*pi)) );
+            if ( absVal(q-1) <= 1e-6) {Vort += 1;}
+            else if ( absVal(q+1) <= 1e-6){Antvort += 1;}
+        }
+    }  
+}
+    
 
 //-----Function that generates bonds between neighbouring sites-----//
 inline void Bonds(double beta){
@@ -200,7 +247,7 @@ inline void reset(){
 }    
 
 void CA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
-    std::vector<double> Energy(Nmeas), Energy2(Nmeas), Magn(Nmeas), Magn2(Nmeas);
+    std::vector<double> Energy(Nmeas), Energy2(Nmeas), Magn(Nmeas), Magn2(Nmeas), VORT(Nmeas), AVORT(Nmeas);
     //Thermalization//
     initialize_lattice();
     for(int i = 0; i<Ntherm; i++){
@@ -217,11 +264,14 @@ void CA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
         
         EnergyCA(); //We compute the energy
         Magnetization(); //Magnetization
+        Vorticity(); 
         Energy[i] = E; 
         Energy2[i] = E*E;
         Magn[i] = M;
         Magn2[i] = M*M;
-        E = 0; M = 0;
+        VORT[i] = Vort;
+        AVORT[i] = Antvort;
+        E = 0; M = 0; Vort = 0; Antvort = 0;
         for(int j = 0; j<Nsteps; j++){
             Bonds(beta); //Computes the bonds and the reflected lattice.
             HoshenKopelman(); //Identifies the clusters.
@@ -234,7 +284,9 @@ void CA_XY2d(double beta, int Ntherm, int Nmeas, int Nsteps){
     Cv = beta * beta * (En2-E*E) /(L*L); dCv = absVal(beta * beta * (dE2 + 2*E*dE)/(L*L));
     M = mean(Magn); dM = Jackknife_error(Magn, 20);
     M2 = mean(Magn2); dM2 = Jackknife_error(Magn2, 20);
-    chi = (M2-M*M) /(L*L); dchi = absVal((dM2 + 2*M*dM)/(L*L));
+    chi = (M2-M*M) /(L*L); dchi = absVal((dM2 - 2*M*dM)/(L*L));
+    Vort = mean(VORT)/(L*L); dVort = Jackknife_error(VORT,20)/(L*L);
+    Antvort = mean(AVORT)/(L*L); dAntvort = Jackknife_error(AVORT,20)/(L*L);
 }
 
 //-----------------------------------------//
@@ -286,12 +338,18 @@ srand(time(0));
         Datfile << Data_str;
         sprintf(Data_str, "%-30.17g%-30.17g\n", chi, dchi);
         Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", Vort, dVort);
+        Datfile << Data_str;
+        sprintf(Data_str, "%-30.17g%-30.17g\n", Antvort, dAntvort);
+        Datfile << Data_str;
         
         std::cout << "E = " << E << " +- " << dE << std::endl;
         std::cout << "Cv = " << Cv << " +- " << dCv << std::endl;
         std::cout << "M = " << M << " +- " << dM << std::endl;
         std::cout << "Chi = " << chi << " +- " << dchi << std::endl; 
-        E = 0; dE= 0; M = 0; dM = 0;
+        std::cout << "V = " << Vort << " +- " << dVort << std::endl;
+        std::cout << "A = " << Antvort << " +- " << dAntvort << std::endl;
+        Vort = 0; dVort=0; Antvort = 0; dAntvort = 0; E = 0; dE= 0; M = 0; dM = 0;
         //----Computing time----//
         clock_t end = clock();
         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
@@ -304,5 +362,3 @@ srand(time(0));
     
     return 0;       
 }
-
-

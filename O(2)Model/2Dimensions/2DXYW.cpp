@@ -350,6 +350,7 @@ int main(){
     int Ntherm, Nmeas, Nsteps, Nbeta;
     double beta_min, beta_max; 
     //---Input data---//
+    std::cout << "Worm algorithm. L=" << L << std::endl;
     std::cout << "beta min: "; 
     std::cin >> beta_min;
     std::cout << "beta max: ";
@@ -360,7 +361,7 @@ int main(){
     std::cin >> Ntherm;
     std::cout << "Measurements: ";
     std::cin >> Nmeas;
-    std::cout << "Step (sweeps between measurements: ";
+    std::cout << "Step (sweeps between measurements): ";
     std::cin >> Nsteps;
     std::cout << " " << std::endl;
     std::vector<double> Betas(Nbeta);
@@ -370,11 +371,15 @@ int main(){
     else{ 
         Betas = linspace(beta_min,beta_max, Nbeta);
     }
-    char NameData[50], Data_str[100];
+    char NameData[1000], Data_str[1000];
 
 
     for (int i = 0; i < Nbeta; i++) {
-        sprintf(NameData, "2DXY_L%d_Meas%d_b%.-4g.dat", L, Nmeas,Betas[i]);
+        int A = Betas[i];
+        int beta= (Betas[i] - A) * 10000;
+        if (Betas[i] < 1){sprintf(NameData, "3DXY_L%d_Meas%d_b0%d.dat", L, Nmeas,beta);}
+        else{beta = beta + (int) Betas[i] * 10000; sprintf(NameData, "2DXY_L%d_Meas%d_b%d.dat", L, Nmeas,beta);}
+
         std::ofstream Datfile;
         Datfile.open(NameData);
         clock_t begin = clock();
