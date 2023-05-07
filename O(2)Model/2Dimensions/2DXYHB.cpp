@@ -16,7 +16,7 @@ double delta = 0, alpha = 0, beta_a = 0, h_a = 0, G_a = 0, g_a = 0;
 double a_const = 0.798953686083986, eps = 0.001, aVal = 0;
 double tx;
 
-const int L = 16;
+const int L = 8;
 double SpinLattice[L][L];
 
 //-----Computes the energy of a configuration-----//
@@ -127,25 +127,23 @@ inline void HB_sweep(double beta){
     double w1, w2;
     for(int i = 0; i<L; i++){
         for(int j = 0; j<L; j++){
-            for(int k = 0; k<L; k++){
-                Sx = cos(SpinLattice[modulo(i+1,L)][j]) + cos(SpinLattice[modulo(i-1,L)][j]) 
-                + cos(SpinLattice[i][modulo(j+1,L)]) + cos(SpinLattice[i][modulo(j-1,L)]); 
-                Sy = sin(SpinLattice[modulo(i+1,L)][j]) + sin(SpinLattice[modulo(i-1,L)][j]) 
-                + sin(SpinLattice[i][modulo(j+1,L)]) + sin(SpinLattice[i][modulo(j-1,L)]);
-                aVal = beta*sqrt(Sx*Sx + Sy*Sy);
-                angle(Sx,Sy); //Now we have tx from -pi to pi 
-                bool boolean = true;
-                while (boolean == true){
-                    w1 = rand_range(0.0,1.0); w2 = rand_range(0.0,1.0);
-                    g_function(w1);
-                    if (w2 <= g_a){
-                        angle( cos(h_a+tx),sin(h_a+tx)  );
-                        SpinLattice[i][j] = tx;
-                        boolean = false;
-                    }
+            Sx = cos(SpinLattice[modulo(i+1,L)][j]) + cos(SpinLattice[modulo(i-1,L)][j]) 
+            + cos(SpinLattice[i][modulo(j+1,L)]) + cos(SpinLattice[i][modulo(j-1,L)]); 
+            Sy = sin(SpinLattice[modulo(i+1,L)][j]) + sin(SpinLattice[modulo(i-1,L)][j]) 
+            + sin(SpinLattice[i][modulo(j+1,L)]) + sin(SpinLattice[i][modulo(j-1,L)]);
+            aVal = beta*sqrt(Sx*Sx + Sy*Sy);
+            angle(Sx,Sy); //Now we have tx from -pi to pi 
+            bool boolean = true;
+            while (boolean == true){
+                w1 = rand_range(0.0,1.0); w2 = rand_range(0.0,1.0);
+                g_function(w1);
+                if (w2 <= g_a){
+                    angle( cos(h_a+tx),sin(h_a+tx)  );
+                    SpinLattice[i][j] = tx;
+                    boolean = false;
                 }
-                Sx = 0.0; Sy = 0.0;      
             }
+            Sx = 0.0; Sy = 0.0;      
         }
     }
 }
