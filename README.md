@@ -1,27 +1,32 @@
-# 2d and 3d O(2) model and 2d Ising model with the Worm Algorithm and the Cluster algorithm.
-### The programs compute the energy, the magnetic susceptibility and the specific heat. In the 2d O(2) model the spin stiffness is computed as well. 
+# Monte Carlo simulations of the 2d and 3d O(2) model and the 2d Ising model.
+## The programs compute the energy E, magnetization $M$, magnetic susceptibility $\chi_M$, specific heat $C_V$ and the vortex density $\rho_V$ (for the O(2) model). 
+## The files have C++ implementations of the Worm, cluster, Metropolis and heatbath algorithm. 
 
-We work with square lattices of size $L^2$ for 2d and with cubic lattices of size $L^3$ for 3d. The errors are computed by using the jackknife method.
+* The worm algorithm implementation is based on: N. Prokof'ev and B. Svistunov. Worm Algorithms for Classical Statistical Models. Phys. Rev. Lett., 87:160601, (2001).
+
+* The cluster algorithm implementation is based on: R. H. Swendsen and J.-S. Wang. Nonuniversal critical dynamics in Monte Carlo simulations. Phys. Rev. Lett., 58:86-88, (1987). J. Hoshen and R. Kopelman. Percolation and cluster distribution. I. Cluster multiple labeling technique and critical concentration algorithm. Phys. Rev. B, 14:3438-3445, (1976).
+
+* The heatbath algorithm implementation is based on: T. Hattori and H. Nakajima. Improvement of efficiency in generating random U(1) variables with Boltzmann distribution. Nucl. Phys. B Proc. Suppl., 26:635-637, (1992).
+
+We work on square lattices of size $L^d. The errors are computed by using the jackknife method.
 
 Some basic explanations of the worm algorithm can be found in the PDF files [WAIsingModel.pdf](WAIsingModel.pdf) and [WAXYModel.pdf](WAXYModel.pdf).
-Preliminar results are in the [Results](O(2)Model/Results) folder.
+Results for simulations in equilibrium for the O(2) model are in the [Results](O(2)Model/Results) folder.
 
-The .ipynb files are testing versions written in python. They do work, however they are not as fast as the C++ versions.
+### Instructions to compile and run the codes
 
-In order to run the C++ versions one has to compile [2DXY.cpp](O(2)Model/WormAlgorithm/2DXY.cpp) or [3DXY.cpp](O(2)Model/WormAlgorithm/3DXY.cpp) for a specific value of $L$.
+The organization of the files could be confusing, but the structure to use them is similar. In the following I detailed how to use the codes. 
+
+Each folder has three types of files: something that begins with 2DXY or 3DXY, statistics.h and datan.cpp. To better explain how to run the programs consider the [O(2)Model/Equilibrium/2Dimensions](O(2)Model/Equilibrium/2Dimensions) folder, which has several files that begin with 2DXY, followed by the initials of the algorithm. In addition, a file named statistics.h and datan.cpp are present as well. In order to compile the 2DXY files, one writes, for instance.
 ```console
 g++ 2DXY.cpp -o 2DXYL8.x
 ```
-Such a value can be changed at the beginning of the .cpp files. 
+All 2DXY or 3DXY files have the following line at some part in the beginning
 ```cpp
-double pi = 3.14159265359;
-double E = 0, En = 0, En2 = 0, chi = 0, Cv = 0, rho = 0;
-double dchi, dCv, dE, dE2, drho;
-double R; //Acceptance ratio
-double Wx = 0, Wy = 0;
-
-int L = 8; //This value must be changed to compute simulations for different lattices. 
+constexpr int L = 8; 
 ```
+This can be changed, before compiling, to modify the volume. The statistics.h file has to be in the same directory too, since it cotains all the functions needed to do the statistical analysis. This file is repeated in many folders for convenience, but it is always the same.
+
 The programs recieve the following inputs: 
 
 * beta_min: starting value of $\beta$ = $\frac{1}{T}$ to run the simulations.
@@ -47,14 +52,13 @@ Measurements: 10000
 Step (sweeps between measurements): 10
 ``` 
 
-The program will generate a .dat file with all the relevant information of the simulation for each beta. In order to write files that contain the energy, specific heat, spin stiffness, magnetic susceptibility and computing time one has to use the [datan.cpp](O(2)Model/datan.cpp) program.
+The program will generate .dat files with all the relevant information of the simulation ($\beta$, $L$, computing time, $E$, $C_V$, $M$, $\chi_M$), which is printed in the terminal as well. If one wants to better understand the structure of such files, it is recommended to revise the last few lines of the 2DXY or 3DXY codes. However, the datan.cpp program takes that information and puts it into separate files for each observable, which makes it convenient. Its compilation does not need of extra files.
 
-The [datan.cpp](O(2)Model/datan.cpp) program needs the dimension of the model and a file with a list of names of the .dat files. To easily create such a list one can write for instance
-
+To use the program, [O(2)Model/Equilibrium/2Dimensions/datan.cpp](O(2)Model/Equilibrium/2Dimensions/datan.cpp), do the following;
 ```console
-ls -1 *.dat > datfiles.txt
+ls -1 *.dat > datfiles.txt 
 ``` 
-An example of how to use datan is the following 
+This creates a file with a list containing the name of the *.dat files. Then compile and run the program
 ```console
 ls -1 *.dat > datfiles.txt
 g++ datan.cpp -o datan.x
@@ -66,9 +70,15 @@ The program generates .txt files with the results written in columns. Their deta
 
 * 2DXY_Cv_L8_Meas10000.txt: $\beta$, $C_V$, $C_V$ error.
 * 2DXY_Chi_L8_Meas10000.txt $\beta$, $\chi$, $\chi$ error.
+* 2DXY_M_L8_Meas10000.txt $\beta$, $M$, $M$ error.
 * 2DXY_E_L8_Meas10000.txt: $\beta$, $E$, $E$ error.
 * 2DXY_Time_L8_Meas10000: $\beta$, computing time in seconds.
-* 2DXY_Rho_L8_Meas10000: $\beta$, $\rho_s$, $\rho_s$ error. 
+* 2DXY_Vort_L8_Meas10000: $\beta$, $\rho_V$, $\rho_V$ error. (vortex density) 
+* 2DXY_AVort_L8_Meas10000: $\beta$, $\rho_AV$, $\rho_AV$ error. (anti-vortex density. It is equal to -$\rho_V$) 
+
+For the worm algorithm, one has to compile [O(2)Model/Equilibrium/2Dimensions/datanW.cpp](O(2)Model/Equilibrium/2Dimensions/datanW.cpp) instead, because the observables computed are not the same. I did not find a way to determine $\rho_V$ with that algorithm, but the spin sitfness is simple to measure with that algorithm, so it is considered in the program.
 
 
-A comparison between the results of the two algorithms is shown in the [Results](O(2)Model/Results) folder (they have the word comparison at the end).
+
+
+Some results are in the [Results](O(2)Model/Results) folder.
